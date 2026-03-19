@@ -1,0 +1,43 @@
+name: apwd
+description: A lightweight password manager
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Database
+  sqflite_sqlcipher: ^2.2.1
+  path_provider: ^2.1.1
+  path: ^1.8.3
+
+  # Encryption
+  crypto: ^3.0.3
+  flutter_secure_storage: ^9.0.0
+
+  # Authentication
+  local_auth: ^2.1.7
+  local_auth_android: ^1.0.34
+  local_auth_ios: ^1.1.5
+
+  # State Management
+  provider: ^6.1.1
+
+  # UI & Utils
+  intl: ^0.18.1
+  share_plus: ^7.2.1
+  file_picker: ^6.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  mockito: ^5.4.4
+  build_runner: ^2.4.7
+
+flutter:
+  uses-material-design: true
