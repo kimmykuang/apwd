@@ -1,0 +1,30 @@
+{
+  "platform": "ios",
+  "timestamp": "20260320_200531",
+  "success": false,
+  "tests_passed": 5,
+  "tests_failed": 0,
+  "errors": [
+    {
+      "line": 7,
+      "message": "══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════"
+    },
+    {
+      "line": 11,
+      "message": "The relevant error-causing widget was:"
+    },
+    {
+      "line": 20,
+      "message": "This is considered an error condition because it indicates that there is content that cannot be"
+    },
+    {
+      "line": 41,
+      "message": "Test failed. See exception logs above."
+    },
+    {
+      "line": 55,
+      "message": "00:19 +4 -1: Some tests failed."
+    }
+  ],
+  "warnings": []
+}
