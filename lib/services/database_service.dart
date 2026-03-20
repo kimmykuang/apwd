@@ -114,6 +114,14 @@ class DatabaseService {
       )
     ''');
 
+    // Create app_settings table for key-value storage
+    await db.execute('''
+      CREATE TABLE app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+
     // Create indexes for better query performance
     await db.execute('''
       CREATE INDEX idx_groups_name ON groups(name)
@@ -141,5 +149,58 @@ class DatabaseService {
       await _database!.close();
       _database = null;
     }
+  }
+
+  /// Save a setting value
+  Future<void> setSetting(String key, String value) async {
+    if (_database == null) {
+      throw StateError('Database not initialized');
+    }
+
+    await _database!.insert(
+      'app_settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Get a setting value
+  Future<String?> getSetting(String key) async {
+    if (_database == null) {
+      throw StateError('Database not initialized');
+    }
+
+    final results = await _database!.query(
+      'app_settings',
+      where: 'key = ?',
+      whereArgs: [key],
+    );
+
+    if (results.isEmpty) return null;
+    return results.first['value'] as String?;
+  }
+
+  /// Save an integer setting
+  Future<void> setIntSetting(String key, int value) async {
+    await setSetting(key, value.toString());
+  }
+
+  /// Get an integer setting
+  Future<int?> getIntSetting(String key, {int? defaultValue}) async {
+    final value = await getSetting(key);
+    if (value == null) return defaultValue;
+    return int.tryParse(value) ?? defaultValue;
+  }
+
+  /// Save a boolean setting
+  Future<void> setBoolSetting(String key, bool value) async {
+    await setSetting(key, value.toString());
+  }
+
+  /// Get a boolean setting
+  Future<bool?> getBoolSetting(String key, {bool? defaultValue}) async {
+    final value = await getSetting(key);
+    if (value == null) return defaultValue;
+    return value.toLowerCase() == 'true';
   }
 }

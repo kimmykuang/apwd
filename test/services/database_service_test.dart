@@ -291,4 +291,84 @@ void main() {
       );
     });
   });
+
+  group('DatabaseService - Settings', () {
+    late DatabaseService dbService;
+    late String testDbPath;
+    late Uint8List testDatabaseKey;
+
+    setUp(() async {
+      // Create a test database key (32 bytes)
+      testDatabaseKey = Uint8List.fromList(List.generate(32, (i) => i));
+
+      // Create a unique test database path
+      testDbPath = '${Directory.systemTemp.path}/test_apwd_settings_${DateTime.now().millisecondsSinceEpoch}.db';
+
+      // Initialize database service with FFI factory for testing
+      dbService = DatabaseService(databaseFactory: databaseFactoryFfi);
+    });
+
+    tearDown(() async {
+      // Close database
+      await dbService.close();
+
+      // Clean up test database file
+      final file = File(testDbPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    });
+
+    test('should save and retrieve string setting', () async {
+      await dbService.initialize(testDbPath, testDatabaseKey);
+
+      await dbService.setSetting('test_key', 'test_value');
+      final value = await dbService.getSetting('test_key');
+
+      expect(value, 'test_value');
+    });
+
+    test('should return null for non-existent setting', () async {
+      await dbService.initialize(testDbPath, testDatabaseKey);
+
+      final value = await dbService.getSetting('non_existent');
+
+      expect(value, isNull);
+    });
+
+    test('should update existing setting', () async {
+      await dbService.initialize(testDbPath, testDatabaseKey);
+
+      await dbService.setSetting('key', 'value1');
+      await dbService.setSetting('key', 'value2');
+      final value = await dbService.getSetting('key');
+
+      expect(value, 'value2');
+    });
+
+    test('should save and retrieve int setting', () async {
+      await dbService.initialize(testDbPath, testDatabaseKey);
+
+      await dbService.setIntSetting('timeout', 300);
+      final value = await dbService.getIntSetting('timeout');
+
+      expect(value, 300);
+    });
+
+    test('should save and retrieve bool setting', () async {
+      await dbService.initialize(testDbPath, testDatabaseKey);
+
+      await dbService.setBoolSetting('enabled', true);
+      final value = await dbService.getBoolSetting('enabled');
+
+      expect(value, true);
+    });
+
+    test('should return default values for missing typed settings', () async {
+      await dbService.initialize(testDbPath, testDatabaseKey);
+
+      expect(await dbService.getIntSetting('missing', defaultValue: 42), 42);
+      expect(await dbService.getBoolSetting('missing', defaultValue: false), false);
+    });
+  });
 }
