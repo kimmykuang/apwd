@@ -127,31 +127,25 @@ void main() {
     });
   });
 
-  group('CryptoService - AES Encryption/Decryption', () {
-    test('encryptText then decryptText returns original plaintext', () {
+  group('CryptoService - AES Encryption', () {
+    test('should encrypt and decrypt text successfully', () {
       // Arrange
-      const plaintext = 'Hello, World!';
-      final key = Uint8List(32); // 32-byte key for AES-256
-      for (int i = 0; i < 32; i++) {
-        key[i] = i;
-      }
+      const plaintext = 'my_secret_password_123';
+      final key = Uint8List.fromList(List.generate(32, (i) => i));
 
       // Act
-      final ciphertext = cryptoService.encryptText(plaintext, key);
-      final decrypted = cryptoService.decryptText(ciphertext, key);
+      final encrypted = cryptoService.encryptText(plaintext, key);
+      final decrypted = cryptoService.decryptText(encrypted, key);
 
       // Assert
+      expect(encrypted, isNot(equals(plaintext)));
       expect(decrypted, equals(plaintext));
     });
 
-    test('same plaintext encrypted twice produces different ciphertext',
-        () {
+    test('should produce different ciphertext for same plaintext', () {
       // Arrange
       const plaintext = 'Hello, World!';
-      final key = Uint8List(32);
-      for (int i = 0; i < 32; i++) {
-        key[i] = i;
-      }
+      final key = Uint8List.fromList(List.generate(32, (i) => i));
 
       // Act
       final ciphertext1 = cryptoService.encryptText(plaintext, key);
@@ -166,15 +160,11 @@ void main() {
       expect(decrypted2, equals(plaintext));
     });
 
-    test('decryptText with wrong key should fail', () {
+    test('should fail to decrypt with wrong key', () {
       // Arrange
       const plaintext = 'Hello, World!';
-      final key1 = Uint8List(32);
-      final key2 = Uint8List(32);
-      for (int i = 0; i < 32; i++) {
-        key1[i] = i;
-        key2[i] = 255 - i; // Different key
-      }
+      final key1 = Uint8List.fromList(List.generate(32, (i) => i));
+      final key2 = Uint8List.fromList(List.generate(32, (i) => i + 1));
 
       // Act
       final ciphertext = cryptoService.encryptText(plaintext, key1);
@@ -186,29 +176,10 @@ void main() {
       );
     });
 
-    test('encryptText/decryptText handles special characters and Unicode', () {
-      // Arrange
-      const plaintext = 'Hello! 你好 🔒 Special chars: @#\$%^&*()';
-      final key = Uint8List(32);
-      for (int i = 0; i < 32; i++) {
-        key[i] = i;
-      }
-
-      // Act
-      final ciphertext = cryptoService.encryptText(plaintext, key);
-      final decrypted = cryptoService.decryptText(ciphertext, key);
-
-      // Assert
-      expect(decrypted, equals(plaintext));
-    });
-
-    test('encryptText/decryptText handles empty string', () {
+    test('should handle empty string encryption', () {
       // Arrange
       const plaintext = '';
-      final key = Uint8List(32);
-      for (int i = 0; i < 32; i++) {
-        key[i] = i;
-      }
+      final key = Uint8List.fromList(List.generate(32, (i) => i));
 
       // Act
       final ciphertext = cryptoService.encryptText(plaintext, key);
@@ -218,13 +189,23 @@ void main() {
       expect(decrypted, equals(plaintext));
     });
 
-    test('encryptText/decryptText handles long text', () {
+    test('should handle unicode characters', () {
+      // Arrange
+      const plaintext = '密码测试 🔐 Пароль';
+      final key = Uint8List.fromList(List.generate(32, (i) => i));
+
+      // Act
+      final ciphertext = cryptoService.encryptText(plaintext, key);
+      final decrypted = cryptoService.decryptText(ciphertext, key);
+
+      // Assert
+      expect(decrypted, equals(plaintext));
+    });
+
+    test('should handle long text', () {
       // Arrange
       final plaintext = 'A' * 10000; // 10,000 characters
-      final key = Uint8List(32);
-      for (int i = 0; i < 32; i++) {
-        key[i] = i;
-      }
+      final key = Uint8List.fromList(List.generate(32, (i) => i));
 
       // Act
       final ciphertext = cryptoService.encryptText(plaintext, key);
@@ -234,13 +215,10 @@ void main() {
       expect(decrypted, equals(plaintext));
     });
 
-    test('encrypted output is base64 encoded', () {
+    test('encrypted text should be base64 encoded', () {
       // Arrange
       const plaintext = 'Test';
-      final key = Uint8List(32);
-      for (int i = 0; i < 32; i++) {
-        key[i] = i;
-      }
+      final key = Uint8List.fromList(List.generate(32, (i) => i));
 
       // Act
       final ciphertext = cryptoService.encryptText(plaintext, key);
