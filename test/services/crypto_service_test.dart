@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:apwd/services/crypto_service.dart';
@@ -123,6 +124,131 @@ void main() {
       // Assert
       expect(hash1, equals(hash2));
       expect(hash1.length, 32); // SHA-256 output
+    });
+  });
+
+  group('CryptoService - AES Encryption/Decryption', () {
+    test('encrypt then decrypt returns original plaintext', () async {
+      // Arrange
+      const plaintext = 'Hello, World!';
+      final key = Uint8List(32); // 32-byte key for AES-256
+      for (int i = 0; i < 32; i++) {
+        key[i] = i;
+      }
+
+      // Act
+      final ciphertext = await cryptoService.encrypt(plaintext, key);
+      final decrypted = await cryptoService.decrypt(ciphertext, key);
+
+      // Assert
+      expect(decrypted, equals(plaintext));
+    });
+
+    test('same plaintext encrypted twice produces different ciphertext',
+        () async {
+      // Arrange
+      const plaintext = 'Hello, World!';
+      final key = Uint8List(32);
+      for (int i = 0; i < 32; i++) {
+        key[i] = i;
+      }
+
+      // Act
+      final ciphertext1 = await cryptoService.encrypt(plaintext, key);
+      final ciphertext2 = await cryptoService.encrypt(plaintext, key);
+
+      // Assert
+      expect(ciphertext1, isNot(equals(ciphertext2)));
+      // But both should decrypt to the same plaintext
+      final decrypted1 = await cryptoService.decrypt(ciphertext1, key);
+      final decrypted2 = await cryptoService.decrypt(ciphertext2, key);
+      expect(decrypted1, equals(plaintext));
+      expect(decrypted2, equals(plaintext));
+    });
+
+    test('decrypt with wrong key should fail', () async {
+      // Arrange
+      const plaintext = 'Hello, World!';
+      final key1 = Uint8List(32);
+      final key2 = Uint8List(32);
+      for (int i = 0; i < 32; i++) {
+        key1[i] = i;
+        key2[i] = 255 - i; // Different key
+      }
+
+      // Act
+      final ciphertext = await cryptoService.encrypt(plaintext, key1);
+
+      // Assert
+      expect(
+        () async => await cryptoService.decrypt(ciphertext, key2),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('encrypt/decrypt handles special characters and Unicode', () async {
+      // Arrange
+      const plaintext = 'Hello! 你好 🔒 Special chars: @#\$%^&*()';
+      final key = Uint8List(32);
+      for (int i = 0; i < 32; i++) {
+        key[i] = i;
+      }
+
+      // Act
+      final ciphertext = await cryptoService.encrypt(plaintext, key);
+      final decrypted = await cryptoService.decrypt(ciphertext, key);
+
+      // Assert
+      expect(decrypted, equals(plaintext));
+    });
+
+    test('encrypt/decrypt handles empty string', () async {
+      // Arrange
+      const plaintext = '';
+      final key = Uint8List(32);
+      for (int i = 0; i < 32; i++) {
+        key[i] = i;
+      }
+
+      // Act
+      final ciphertext = await cryptoService.encrypt(plaintext, key);
+      final decrypted = await cryptoService.decrypt(ciphertext, key);
+
+      // Assert
+      expect(decrypted, equals(plaintext));
+    });
+
+    test('encrypt/decrypt handles long text', () async {
+      // Arrange
+      final plaintext = 'A' * 10000; // 10,000 characters
+      final key = Uint8List(32);
+      for (int i = 0; i < 32; i++) {
+        key[i] = i;
+      }
+
+      // Act
+      final ciphertext = await cryptoService.encrypt(plaintext, key);
+      final decrypted = await cryptoService.decrypt(ciphertext, key);
+
+      // Assert
+      expect(decrypted, equals(plaintext));
+    });
+
+    test('encrypted output is base64 encoded', () async {
+      // Arrange
+      const plaintext = 'Test';
+      final key = Uint8List(32);
+      for (int i = 0; i < 32; i++) {
+        key[i] = i;
+      }
+
+      // Act
+      final ciphertext = await cryptoService.encrypt(plaintext, key);
+
+      // Assert
+      expect(ciphertext, isA<String>());
+      // Should be valid base64 (no exception when decoding)
+      expect(() => base64Decode(ciphertext), returnsNormally);
     });
   });
 }

@@ -80,6 +80,136 @@ class CryptoService {
     return Uint8List.fromList(crypto_pkg.sha256.convert(authKey).bytes);
   }
 
+  /// Encrypts plaintext using AES-256-CBC encryption.
+  ///
+  /// Uses AES-256 in CBC mode with PKCS7 padding. A random 16-byte IV is
+  /// generated for each encryption and prepended to the ciphertext.
+  ///
+  /// [plaintext] - The text to encrypt
+  /// [key] - The 32-byte encryption key
+  ///
+  /// Returns a [Future<String>] containing the base64 encoded IV+ciphertext.
+  Future<String> encrypt(String plaintext, Uint8List key) async {
+    if (key.length != 32) {
+      throw ArgumentError('Key must be 32 bytes for AES-256');
+    }
+
+    // Generate random 16-byte IV
+    final iv = _generateIV();
+
+    // Convert plaintext to bytes
+    final plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
+
+    // Handle empty plaintext - just return IV + empty ciphertext
+    if (plaintextBytes.isEmpty) {
+      final output = Uint8List(iv.length + 16); // IV + one padded block
+      output.setRange(0, iv.length, iv);
+
+      // Encrypt a block of padding (16 bytes of 0x10 per PKCS7)
+      final cipher = CBCBlockCipher(AESEngine());
+      cipher.init(true, ParametersWithIV(KeyParameter(key), iv));
+
+      final paddingBlock = Uint8List(16);
+      for (int i = 0; i < 16; i++) {
+        paddingBlock[i] = 16; // PKCS7 padding for empty input
+      }
+
+      final encryptedPadding = Uint8List(16);
+      cipher.processBlock(paddingBlock, 0, encryptedPadding, 0);
+
+      output.setRange(iv.length, output.length, encryptedPadding);
+      return base64.encode(output);
+    }
+
+    // Initialize AES cipher
+    final cipher = PaddedBlockCipherImpl(
+      PKCS7Padding(),
+      CBCBlockCipher(AESEngine()),
+    );
+
+    final params = PaddedBlockCipherParameters(
+      ParametersWithIV(KeyParameter(key), iv),
+      null,
+    );
+
+    cipher.init(true, params); // true = encrypt
+
+    // Encrypt the data
+    final ciphertextBytes = cipher.process(plaintextBytes);
+
+    // Prepend IV to ciphertext
+    final output = Uint8List(iv.length + ciphertextBytes.length);
+    output.setRange(0, iv.length, iv);
+    output.setRange(iv.length, output.length, ciphertextBytes);
+
+    // Return base64 encoded result
+    return base64.encode(output);
+  }
+
+  /// Decrypts ciphertext using AES-256-CBC decryption.
+  ///
+  /// Uses AES-256 in CBC mode with PKCS7 padding. The IV is expected to be
+  /// prepended to the ciphertext.
+  ///
+  /// [ciphertext] - The base64 encoded IV+ciphertext to decrypt
+  /// [key] - The 32-byte encryption key
+  ///
+  /// Returns a [Future<String>] containing the decrypted plaintext.
+  /// Throws [Exception] if decryption fails (e.g., wrong key, corrupted data).
+  Future<String> decrypt(String ciphertext, Uint8List key) async {
+    if (key.length != 32) {
+      throw ArgumentError('Key must be 32 bytes for AES-256');
+    }
+
+    try {
+      // Decode base64
+      final data = base64.decode(ciphertext);
+
+      if (data.length < 16) {
+        throw Exception('Invalid ciphertext: too short');
+      }
+
+      // Extract IV and ciphertext
+      final iv = data.sublist(0, 16);
+      final ciphertextBytes = data.sublist(16);
+
+      // Initialize AES cipher
+      final cipher = PaddedBlockCipherImpl(
+        PKCS7Padding(),
+        CBCBlockCipher(AESEngine()),
+      );
+
+      final params = PaddedBlockCipherParameters(
+        ParametersWithIV(KeyParameter(key), iv),
+        null,
+      );
+
+      cipher.init(false, params); // false = decrypt
+
+      // Decrypt the data
+      final plaintextBytes = cipher.process(ciphertextBytes);
+
+      // Convert bytes to string
+      return utf8.decode(plaintextBytes);
+    } catch (e) {
+      throw Exception('Decryption failed: ${e.toString()}');
+    }
+  }
+
+  /// Generates a random 16-byte IV for AES encryption.
+  ///
+  /// Returns a [Uint8List] of 16 random bytes.
+  Uint8List _generateIV() {
+    final secureRandom = _createSecureRandom();
+    final iv = Uint8List(16);
+
+    for (int i = 0; i < iv.length; i++) {
+      iv[i] = secureRandom.nextUint8();
+    }
+
+    return iv;
+  }
+
   /// Creates a cryptographically secure random number generator.
   ///
   /// Uses Fortuna PRNG seeded with random data from the platform's secure random source.
