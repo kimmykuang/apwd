@@ -128,7 +128,7 @@ void main() {
   });
 
   group('CryptoService - AES Encryption/Decryption', () {
-    test('encrypt then decrypt returns original plaintext', () async {
+    test('encryptText then decryptText returns original plaintext', () {
       // Arrange
       const plaintext = 'Hello, World!';
       final key = Uint8List(32); // 32-byte key for AES-256
@@ -137,15 +137,15 @@ void main() {
       }
 
       // Act
-      final ciphertext = await cryptoService.encrypt(plaintext, key);
-      final decrypted = await cryptoService.decrypt(ciphertext, key);
+      final ciphertext = cryptoService.encryptText(plaintext, key);
+      final decrypted = cryptoService.decryptText(ciphertext, key);
 
       // Assert
       expect(decrypted, equals(plaintext));
     });
 
     test('same plaintext encrypted twice produces different ciphertext',
-        () async {
+        () {
       // Arrange
       const plaintext = 'Hello, World!';
       final key = Uint8List(32);
@@ -154,19 +154,19 @@ void main() {
       }
 
       // Act
-      final ciphertext1 = await cryptoService.encrypt(plaintext, key);
-      final ciphertext2 = await cryptoService.encrypt(plaintext, key);
+      final ciphertext1 = cryptoService.encryptText(plaintext, key);
+      final ciphertext2 = cryptoService.encryptText(plaintext, key);
 
       // Assert
       expect(ciphertext1, isNot(equals(ciphertext2)));
       // But both should decrypt to the same plaintext
-      final decrypted1 = await cryptoService.decrypt(ciphertext1, key);
-      final decrypted2 = await cryptoService.decrypt(ciphertext2, key);
+      final decrypted1 = cryptoService.decryptText(ciphertext1, key);
+      final decrypted2 = cryptoService.decryptText(ciphertext2, key);
       expect(decrypted1, equals(plaintext));
       expect(decrypted2, equals(plaintext));
     });
 
-    test('decrypt with wrong key should fail', () async {
+    test('decryptText with wrong key should fail', () {
       // Arrange
       const plaintext = 'Hello, World!';
       final key1 = Uint8List(32);
@@ -177,16 +177,16 @@ void main() {
       }
 
       // Act
-      final ciphertext = await cryptoService.encrypt(plaintext, key1);
+      final ciphertext = cryptoService.encryptText(plaintext, key1);
 
       // Assert
       expect(
-        () async => await cryptoService.decrypt(ciphertext, key2),
-        throwsA(isA<Exception>()),
+        () => cryptoService.decryptText(ciphertext, key2),
+        throwsA(isA<CryptoException>()),
       );
     });
 
-    test('encrypt/decrypt handles special characters and Unicode', () async {
+    test('encryptText/decryptText handles special characters and Unicode', () {
       // Arrange
       const plaintext = 'Hello! 你好 🔒 Special chars: @#\$%^&*()';
       final key = Uint8List(32);
@@ -195,14 +195,14 @@ void main() {
       }
 
       // Act
-      final ciphertext = await cryptoService.encrypt(plaintext, key);
-      final decrypted = await cryptoService.decrypt(ciphertext, key);
+      final ciphertext = cryptoService.encryptText(plaintext, key);
+      final decrypted = cryptoService.decryptText(ciphertext, key);
 
       // Assert
       expect(decrypted, equals(plaintext));
     });
 
-    test('encrypt/decrypt handles empty string', () async {
+    test('encryptText/decryptText handles empty string', () {
       // Arrange
       const plaintext = '';
       final key = Uint8List(32);
@@ -211,14 +211,14 @@ void main() {
       }
 
       // Act
-      final ciphertext = await cryptoService.encrypt(plaintext, key);
-      final decrypted = await cryptoService.decrypt(ciphertext, key);
+      final ciphertext = cryptoService.encryptText(plaintext, key);
+      final decrypted = cryptoService.decryptText(ciphertext, key);
 
       // Assert
       expect(decrypted, equals(plaintext));
     });
 
-    test('encrypt/decrypt handles long text', () async {
+    test('encryptText/decryptText handles long text', () {
       // Arrange
       final plaintext = 'A' * 10000; // 10,000 characters
       final key = Uint8List(32);
@@ -227,14 +227,14 @@ void main() {
       }
 
       // Act
-      final ciphertext = await cryptoService.encrypt(plaintext, key);
-      final decrypted = await cryptoService.decrypt(ciphertext, key);
+      final ciphertext = cryptoService.encryptText(plaintext, key);
+      final decrypted = cryptoService.decryptText(ciphertext, key);
 
       // Assert
       expect(decrypted, equals(plaintext));
     });
 
-    test('encrypted output is base64 encoded', () async {
+    test('encrypted output is base64 encoded', () {
       // Arrange
       const plaintext = 'Test';
       final key = Uint8List(32);
@@ -243,7 +243,7 @@ void main() {
       }
 
       // Act
-      final ciphertext = await cryptoService.encrypt(plaintext, key);
+      final ciphertext = cryptoService.encryptText(plaintext, key);
 
       // Assert
       expect(ciphertext, isA<String>());

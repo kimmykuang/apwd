@@ -5,6 +5,15 @@ import 'package:pointycastle/export.dart';
 import 'package:crypto/crypto.dart' as crypto_pkg;
 import 'package:apwd/utils/constants.dart';
 
+/// Exception thrown when crypto operations fail
+class CryptoException implements Exception {
+  final String message;
+  CryptoException(this.message);
+
+  @override
+  String toString() => 'CryptoException: $message';
+}
+
 /// Service for cryptographic operations including key derivation and encryption.
 class CryptoService {
   /// Generates a cryptographically secure random salt.
@@ -88,8 +97,8 @@ class CryptoService {
   /// [plaintext] - The text to encrypt
   /// [key] - The 32-byte encryption key
   ///
-  /// Returns a [Future<String>] containing the base64 encoded IV+ciphertext.
-  Future<String> encrypt(String plaintext, Uint8List key) async {
+  /// Returns a [String] containing the base64 encoded IV+ciphertext.
+  String encryptText(String plaintext, Uint8List key) {
     if (key.length != 32) {
       throw ArgumentError('Key must be 32 bytes for AES-256');
     }
@@ -154,9 +163,9 @@ class CryptoService {
   /// [ciphertext] - The base64 encoded IV+ciphertext to decrypt
   /// [key] - The 32-byte encryption key
   ///
-  /// Returns a [Future<String>] containing the decrypted plaintext.
-  /// Throws [Exception] if decryption fails (e.g., wrong key, corrupted data).
-  Future<String> decrypt(String ciphertext, Uint8List key) async {
+  /// Returns a [String] containing the decrypted plaintext.
+  /// Throws [CryptoException] if decryption fails (e.g., wrong key, corrupted data).
+  String decryptText(String ciphertext, Uint8List key) {
     if (key.length != 32) {
       throw ArgumentError('Key must be 32 bytes for AES-256');
     }
@@ -166,7 +175,7 @@ class CryptoService {
       final data = base64.decode(ciphertext);
 
       if (data.length < 16) {
-        throw Exception('Invalid ciphertext: too short');
+        throw CryptoException('Invalid ciphertext: too short');
       }
 
       // Extract IV and ciphertext
@@ -192,7 +201,7 @@ class CryptoService {
       // Convert bytes to string
       return utf8.decode(plaintextBytes);
     } catch (e) {
-      throw Exception('Decryption failed: ${e.toString()}');
+      throw CryptoException('Decryption failed: ${e.toString()}');
     }
   }
 
