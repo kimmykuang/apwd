@@ -81,9 +81,10 @@ class _SetupPasswordScreenState extends State<SetupPasswordScreen> {
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 const Icon(
                   Icons.lock_outline,
                   size: 80,
@@ -168,6 +169,7 @@ class _SetupPasswordScreenState extends State<SetupPasswordScreen> {
                       : const Text('Create Password'),
                 ),
               ],
+            ),
             ),
           ),
         ),
