@@ -94,5 +94,35 @@ void main() {
       final isNotAllZeros = key.any((byte) => byte != 0);
       expect(isNotAllZeros, isTrue);
     });
+
+    test('should split derived key into db key and auth key', () async {
+      // Arrange
+      const password = 'test_password';
+      final salt = cryptoService.generateSalt();
+
+      // Act
+      final derivedKey = await cryptoService.deriveKey(password, salt);
+      final dbKey = cryptoService.getDatabaseKey(derivedKey);
+      final authKey = cryptoService.getAuthKey(derivedKey);
+
+      // Assert
+      expect(dbKey.length, 32);
+      expect(authKey.length, 32);
+      expect(dbKey, equals(derivedKey.sublist(0, 32)));
+      expect(authKey, equals(derivedKey.sublist(32, 64)));
+    });
+
+    test('should compute auth hash from auth key', () {
+      // Arrange
+      final authKey = Uint8List.fromList(List.generate(32, (i) => i));
+
+      // Act
+      final hash1 = cryptoService.computeAuthHash(authKey);
+      final hash2 = cryptoService.computeAuthHash(authKey);
+
+      // Assert
+      expect(hash1, equals(hash2));
+      expect(hash1.length, 32); // SHA-256 output
+    });
   });
 }
