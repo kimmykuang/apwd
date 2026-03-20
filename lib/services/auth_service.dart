@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:async';
+import 'package:local_auth/local_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'crypto_service.dart';
 import 'database_service.dart';
 import '../utils/constants.dart';
@@ -8,13 +11,24 @@ import '../utils/constants.dart';
 class AuthService {
   final DatabaseService _dbService;
   final CryptoService _cryptoService;
+  final LocalAuthentication? _localAuth;
+  final FlutterSecureStorage? _secureStorage;
 
   bool _isUnlocked = false;
   Uint8List? _currentDbKey;
+  DateTime? _lastActivityTime;
+  Timer? _autoLockTimer;
 
-  AuthService(this._dbService, this._cryptoService);
+  AuthService(
+    this._dbService,
+    this._cryptoService, {
+    LocalAuthentication? localAuth,
+    FlutterSecureStorage? secureStorage,
+  })  : _localAuth = localAuth ?? LocalAuthentication(),
+        _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   bool get isUnlocked => _isUnlocked;
+  DateTime? get lastActivityTime => _lastActivityTime;
 
   /// Setup master password for first time use
   Future<void> setupMasterPassword(String dbPath, String masterPassword) async {
@@ -53,14 +67,20 @@ class AuthService {
     // Initialize database with encryption
     await _dbService.initialize(dbPath, dbKey);
 
-    // Store salt and hash
+    // Store salt and hash in database
     await _dbService.setSetting(AppConstants.settingPasswordSalt, saltBase64);
     await _dbService.setSetting(AppConstants.settingMasterPasswordHash, authHashBase64);
     await _dbService.setBoolSetting(AppConstants.settingFirstLaunchCompleted, true);
 
+    // Also store salt in secure storage for access before database is unlocked
+    if (_secureStorage != null) {
+      await _secureStorage!.write(key: 'password_salt', value: saltBase64);
+    }
+
     // Mark as unlocked
     _isUnlocked = true;
     _currentDbKey = dbKey;
+    _lastActivityTime = DateTime.now();
   }
 
   /// Verify master password against stored hash
@@ -98,23 +118,121 @@ class AuthService {
     return _cryptoService.getDatabaseKey(derivedKey);
   }
 
+  /// Check if biometric authentication is available on this device
+  Future<bool> checkBiometric() async {
+    if (_localAuth == null) return false;
+
+    try {
+      final canAuthenticateWithBiometrics = await _localAuth!.canCheckBiometrics;
+      final canAuthenticate = canAuthenticateWithBiometrics || await _localAuth!.isDeviceSupported();
+      return canAuthenticate;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Authenticate using biometric (fingerprint, face ID, etc.)
+  Future<bool> authenticateWithBiometric() async {
+    if (_localAuth == null) return false;
+
+    try {
+      final isAvailable = await checkBiometric();
+      if (!isAvailable) return false;
+
+      return await _localAuth!.authenticate(
+        localizedReason: 'Please authenticate to access your passwords',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Store biometric preference in settings
+  Future<void> setBiometricEnabled(bool enabled) async {
+    await _dbService.setBoolSetting(AppConstants.settingBiometricEnabled, enabled);
+  }
+
+  /// Get biometric preference from settings
+  Future<bool> getBiometricEnabled() async {
+    return await _dbService.getBoolSetting(
+      AppConstants.settingBiometricEnabled,
+      defaultValue: false,
+    ) ?? false;
+  }
+
+  /// Start auto-lock timer with configured timeout
+  Future<void> startAutoLockTimer(Function() onLock) async {
+    _autoLockTimer?.cancel();
+    _lastActivityTime = DateTime.now();
+
+    final timeout = await _dbService.getIntSetting(
+      AppConstants.settingAutoLockTimeout,
+      defaultValue: AppConstants.defaultAutoLockTimeout,
+    ) ?? AppConstants.defaultAutoLockTimeout;
+
+    if (timeout > 0) {
+      _autoLockTimer = Timer(Duration(seconds: timeout), () {
+        lock();
+        onLock();
+      });
+    }
+  }
+
+  /// Reset auto-lock timer (call on user activity)
+  Future<void> resetAutoLockTimer(Function() onLock) async {
+    _lastActivityTime = DateTime.now();
+    await startAutoLockTimer(onLock);
+  }
+
+  /// Stop auto-lock timer
+  void stopAutoLockTimer() {
+    _autoLockTimer?.cancel();
+    _autoLockTimer = null;
+  }
+
   /// Unlock database with master password
-  /// Note: Salt needs to be accessible to derive the correct database key
-  /// In production, salt would be stored in a separate unencrypted file
+  /// Note: Salt is retrieved from secure storage or database
   Future<bool> unlock(String dbPath, String masterPassword) async {
     try {
-      // For FFI testing without real encryption, we can open with any key
-      // Then verify the password against stored hash
-      // In production with real SQLCipher, wrong key would fail to open the database
+      // First, try to get salt from secure storage (available before DB is open)
+      String? saltBase64;
+      if (_secureStorage != null) {
+        saltBase64 = await _secureStorage!.read(key: 'password_salt');
+      }
 
-      // Use a dummy key for testing (FFI mode)
-      // In production, would need to derive key from password and stored salt
-      final dummySalt = _cryptoService.generateSalt();
-      final dummyDerivedKey = await _cryptoService.deriveKey(masterPassword, dummySalt);
-      final dummyDbKey = _cryptoService.getDatabaseKey(dummyDerivedKey);
+      // If not in secure storage, try opening with dummy key to read from database
+      if (saltBase64 == null) {
+        // Use a temporary key to open the database and read salt
+        final tempSalt = _cryptoService.generateSalt();
+        final tempDerivedKey = await _cryptoService.deriveKey('temp', tempSalt);
+        final tempDbKey = _cryptoService.getDatabaseKey(tempDerivedKey);
 
-      // Open database
-      await _dbService.initialize(dbPath, dummyDbKey);
+        try {
+          await _dbService.initialize(dbPath, tempDbKey);
+          saltBase64 = await _dbService.getSetting(AppConstants.settingPasswordSalt);
+          await _dbService.close();
+        } catch (e) {
+          // Failed to read salt from database
+          await _dbService.close().catchError((_) {});
+          throw StateError('Password salt not found');
+        }
+      }
+
+      if (saltBase64 == null) {
+        throw StateError('Password salt not found');
+      }
+
+      // Derive the actual key from master password and salt
+      final salt = base64.decode(saltBase64);
+      final derivedKey = await _cryptoService.deriveKey(masterPassword, salt);
+      final dbKey = _cryptoService.getDatabaseKey(derivedKey);
+
+      // Open database with the derived key
+      await _dbService.initialize(dbPath, dbKey);
 
       // Verify password using stored hash
       final isValid = await verifyMasterPassword(masterPassword);
@@ -125,7 +243,8 @@ class AuthService {
       }
 
       _isUnlocked = true;
-      _currentDbKey = dummyDbKey;
+      _currentDbKey = dbKey;
+      _lastActivityTime = DateTime.now();
       return true;
     } catch (e) {
       try {
@@ -140,6 +259,8 @@ class AuthService {
   void lock() {
     _isUnlocked = false;
     _currentDbKey = null;
+    _lastActivityTime = null;
+    stopAutoLockTimer();
   }
 
   /// Compare two byte arrays
