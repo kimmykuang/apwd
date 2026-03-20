@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
@@ -34,22 +35,9 @@ class _SplashScreenState extends State<SplashScreen> {
       final appDir = await getApplicationDocumentsDirectory();
       final dbPath = path.join(appDir.path, AppConstants.dbName);
 
-      // Check if database exists and is initialized
-      bool isInitialized = false;
-      try {
-        // Try to open database without key to check if it exists
-        final db = await dbService.openDatabase(dbPath);
-        final firstLaunch = await dbService.getBoolSetting(
-          AppConstants.settingFirstLaunchCompleted,
-        );
-        isInitialized = firstLaunch ?? false;
-        await db.close();
-      } catch (e) {
-        // Database doesn't exist or error opening
-        isInitialized = false;
-      }
-
-      authProvider.setInitialized(isInitialized);
+      // Check if database file exists (indicates setup was completed)
+      final dbFile = File(dbPath);
+      final isInitialized = await dbFile.exists();
 
       if (!mounted) return;
 
