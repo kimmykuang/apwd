@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,8 +24,15 @@ import 'screens/home_screen.dart';
 import 'screens/password_detail_screen.dart';
 import 'screens/password_edit_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/unsupported_platform_screen.dart';
 
 void main() {
+  // Web platform is not supported due to SQLCipher incompatibility
+  if (kIsWeb) {
+    runApp(const UnsupportedPlatformScreen());
+    return;
+  }
+
   runApp(const MyApp());
 }
 
