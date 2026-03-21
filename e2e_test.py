@@ -2,23 +2,42 @@
 """
 APWD 密码管理器 - 端到端自动化测试
 完全自闭环测试所有功能
+
+使用方法:
+    python e2e_test.py [URL] [OUTPUT_DIR]
+
+参数:
+    URL         - 应用URL (默认: http://localhost:53817)
+    OUTPUT_DIR  - 截图保存目录 (默认: 当前目录)
+
+示例:
+    python e2e_test.py
+    python e2e_test.py http://localhost:8080
+    python e2e_test.py http://localhost:8080 ./screenshots
 """
 
 import time
+import os
+import sys
+import argparse
+from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import sys
 
 class APWDTester:
-    def __init__(self, url="http://localhost:53817"):
+    def __init__(self, url="http://localhost:53817", output_dir="."):
         self.url = url
+        self.output_dir = Path(output_dir)
         self.driver = None
         self.test_password = "MySecureTestPassword123!"
         self.test_results = []
+
+        # 确保输出目录存在
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def setup(self):
         """设置浏览器"""
@@ -159,8 +178,9 @@ class APWDTester:
                 print("✅ 主页加载成功")
 
                 # 截图
-                self.driver.save_screenshot("/Users/kuang/workspace/kimmykuang/apwd/test_home.png")
-                print("   📸 已保存主页截图: test_home.png")
+                screenshot_path = self.output_dir / "test_home.png"
+                self.driver.save_screenshot(str(screenshot_path))
+                print(f"   📸 已保存主页截图: {screenshot_path}")
 
                 self.test_results.append(("主页显示", True))
                 return True
@@ -282,8 +302,9 @@ class APWDTester:
         """测试7: 最终截图"""
         print("\n📸 测试7: 保存最终状态截图")
         try:
-            self.driver.save_screenshot("/Users/kuang/workspace/kimmykuang/apwd/test_final.png")
-            print("✅ 已保存最终截图: test_final.png")
+            screenshot_path = self.output_dir / "test_final.png"
+            self.driver.save_screenshot(str(screenshot_path))
+            print(f"✅ 已保存最终截图: {screenshot_path}")
             self.test_results.append(("截图", True))
             return True
         except Exception as e:
@@ -344,5 +365,25 @@ class APWDTester:
         print("="*60)
 
 if __name__ == "__main__":
-    tester = APWDTester()
+    parser = argparse.ArgumentParser(
+        description='APWD 端到端自动化测试',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+示例:
+  %(prog)s                                    # 使用默认参数
+  %(prog)s http://localhost:8080              # 指定URL
+  %(prog)s http://localhost:8080 ./screenshots  # 指定URL和输出目录
+        '''
+    )
+    parser.add_argument('url', nargs='?', default='http://localhost:53817',
+                        help='应用URL (默认: http://localhost:53817)')
+    parser.add_argument('output_dir', nargs='?', default='.',
+                        help='截图保存目录 (默认: 当前目录)')
+
+    args = parser.parse_args()
+
+    print(f"URL: {args.url}")
+    print(f"输出目录: {args.output_dir}")
+
+    tester = APWDTester(url=args.url, output_dir=args.output_dir)
     tester.run_all_tests()

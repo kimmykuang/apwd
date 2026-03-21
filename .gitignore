@@ -53,6 +53,10 @@ test_results/**/*.md
 test_results/**/screenshots/
 !test_results/README.md
 
+# E2E test screenshots
+test_home.png
+test_final.png
+
 # Temporary scripts and demos
 manual_ios_test.py
 verify_android_studio.sh
