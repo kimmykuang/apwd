@@ -23,13 +23,13 @@ A lightweight, cross-platform password manager built with Flutter, featuring AES
 | **macOS** | ✅ Fully Supported | macOS 10.14+ |
 | **Windows** | ✅ Fully Supported | Windows 10+ |
 | **Linux** | ✅ Fully Supported | Ubuntu 20.04+ |
-| **Web** | ❌ Not Supported | See [Web Platform Analysis](WEB_PLATFORM_ANALYSIS.md) |
+| **Web** | ❌ Not Supported | See [Web Platform](docs/development/WEB_PLATFORM.md) |
 
 ### Why Web is Not Supported
 
 APWD uses SQLCipher for encrypted database storage, which requires native SQLite binaries and is not compatible with Web browsers. Web browsers use IndexedDB, which has a different API and security model.
 
-For technical details, see [WEB_PLATFORM_ANALYSIS.md](WEB_PLATFORM_ANALYSIS.md).
+For technical details, see [Web Platform](docs/development/WEB_PLATFORM.md).
 
 ## 🚀 Getting Started
 
@@ -106,6 +106,8 @@ flutter run -d linux
 
 ## 🔧 Development
 
+> **🐛 Debugging?** Check the [Debugging Guide](docs/development/DEBUGGING_GUIDE.md) for systematic problem-solving approach and common traps.
+
 ### Running Tests
 
 ```bash
@@ -116,7 +118,11 @@ flutter test
 flutter test --coverage
 ```
 
-**Test Results**: 108/108 tests passing ✅
+**Test Results**:
+- Unit Tests: 108/108 passing ✅
+- Integration Tests: 13/13 passing ✅
+
+See [Testing Documentation](docs/testing/TESTING.md) for details.
 
 ### Project Structure
 
@@ -167,9 +173,16 @@ lib/
 
 ## 📚 Documentation
 
-- [Testing Checklist](TESTING_CHECKLIST.md) - Manual testing scenarios
-- [Tools Analysis](TOOLS_ANALYSIS.md) - Development tools and setup
-- [Web Platform Analysis](WEB_PLATFORM_ANALYSIS.md) - Why Web is not supported
+### Development Guides
+- [**Development Overview**](docs/development/README.md) - Index of all development documentation
+- [**Debugging Guide**](docs/development/DEBUGGING_GUIDE.md) ⭐ - **Systematic debugging methodology and common traps**
+- [Android Setup](docs/development/ANDROID_SETUP.md) - Android development and real device testing
+- [iOS Setup](docs/development/IOS_SETUP.md) - iOS development environment
+- [Web Platform](docs/development/WEB_PLATFORM.md) - Why Web is not supported
+
+### Testing & Design
+- [Testing](docs/testing/TESTING.md) - Complete testing guide with automation
+- [Design Specs](docs/superpowers/specs/) - Architecture and design documents
 
 ## 🛡️ Security Considerations
 
@@ -198,4 +211,4 @@ lib/
 ---
 
 **Version**: 0.1.0+1
-**Last Updated**: 2026-03-20
+**Last Updated**: 2026-03-21
