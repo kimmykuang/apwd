@@ -18,7 +18,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // 使用 addPostFrameCallback 确保在 build 完成后加载数据
+    // 这样避免在 build 过程中调用 setState/notifyListeners
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   @override
@@ -47,18 +51,53 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('APWD'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.of(context).pushNamed('/settings');
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              switch (value) {
+                case 'groups':
+                  Navigator.of(context).pushNamed('/groups');
+                  break;
+                case 'settings':
+                  Navigator.of(context).pushNamed('/settings');
+                  break;
+                case 'lock':
+                  await context.read<AuthProvider>().lock();
+                  Navigator.of(context).pushReplacementNamed('/lock');
+                  break;
+              }
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.lock_outline),
-            onPressed: () {
-              context.read<AuthProvider>().lock();
-              Navigator.of(context).pushReplacementNamed('/lock');
-            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'groups',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder),
+                    SizedBox(width: 8),
+                    Text('Manage Groups'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings),
+                    SizedBox(width: 8),
+                    Text('Settings'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'lock',
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline),
+                    SizedBox(width: 8),
+                    Text('Lock'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -88,13 +127,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Expanded(
-            child: Consumer<PasswordProvider>(
-              builder: (context, provider, child) {
-                if (provider.isLoading) {
+            child: Consumer2<PasswordProvider, GroupProvider>(
+              builder: (context, passwordProvider, groupProvider, child) {
+                if (passwordProvider.isLoading || groupProvider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (provider.passwords.isEmpty) {
+                if (passwordProvider.passwords.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -119,13 +158,59 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }
 
-                return RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView.builder(
-                    itemCount: provider.passwords.length,
-                    itemBuilder: (context, index) {
-                      final password = provider.passwords[index];
-                      return ListTile(
+                // Group passwords by groupId
+                final groupedPasswords = <int, List<dynamic>>{};
+                for (final password in passwordProvider.passwords) {
+                  groupedPasswords.putIfAbsent(password.groupId, () => []).add(password);
+                }
+
+                // Get groups that have passwords and sort them
+                final groupsWithPasswords = groupProvider.groups
+                    .where((g) => groupedPasswords.containsKey(g.id))
+                    .toList()
+                  ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+                // Build flat list with headers and items
+                final items = <Widget>[];
+                for (final group in groupsWithPasswords) {
+                  final passwords = groupedPasswords[group.id] ?? [];
+
+                  // Add group header
+                  items.add(
+                    Container(
+                      key: ValueKey('group_${group.id}'),
+                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Text(
+                            group.icon ?? '📁',
+                            style: const TextStyle(fontSize: 20),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            group.name,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '(${passwords.length})',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+
+                  // Add password items
+                  for (final password in passwords) {
+                    items.add(
+                      ListTile(
+                        key: ValueKey('password_${password.id}'),
                         leading: CircleAvatar(
                           child: Text(
                             password.title[0].toUpperCase(),
@@ -141,8 +226,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             arguments: password.id,
                           );
                         },
-                      );
-                    },
+                      ),
+                    );
+                  }
+                }
+
+                return RefreshIndicator(
+                  onRefresh: _loadData,
+                  child: ListView(
+                    children: items,
                   ),
                 );
               },

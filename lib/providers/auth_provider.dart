@@ -14,6 +14,7 @@ class AuthProvider with ChangeNotifier {
   bool get isUnlocked => _isUnlocked;
   bool get isInitialized => _isInitialized;
   String? get errorMessage => _errorMessage;
+  AuthService get authService => _authService;
 
   /// Setup master password for first time use
   Future<bool> setupMasterPassword(String dbPath, String masterPassword) async {
@@ -52,8 +53,8 @@ class AuthProvider with ChangeNotifier {
   }
 
   /// Lock the application
-  void lock() {
-    _authService.lock();
+  Future<void> lock() async {
+    await _authService.lock();
     _isUnlocked = false;
     _errorMessage = null;
     notifyListeners();

@@ -43,3 +43,22 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
+/android/app/build/
+
+# Test results and temporary files
+test_results/**/*.txt
+test_results/**/*.json
+test_results/**/*.md
+test_results/**/screenshots/
+!test_results/README.md
+
+# Temporary scripts and demos
+manual_ios_test.py
+verify_android_studio.sh
+verify_web_screen.py
+screenshots_demo/
+
+# Python cache
+__pycache__/
+*.pyc

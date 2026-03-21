@@ -38,38 +38,51 @@ class DatabaseService {
   ///
   /// This method is idempotent and can be called multiple times safely.
   Future<void> initialize(String dbPath, Uint8List databaseKey) async {
+    print('[DB] Initialize called with dbPath: $dbPath');
     // Close existing database if open
     if (_database != null && _database!.isOpen) {
+      print('[DB] Closing existing database...');
       await _database!.close();
+      _database = null;
+      print('[DB] Existing database closed');
     }
-
-    // Use provided database factory (for testing) or default
-    final factory = _databaseFactory ?? databaseFactory;
 
     // Convert key to hex string for SQLCipher
     final keyHex = databaseKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
+    print('[DB] Opening database with encryption... Key length: ${databaseKey.length} bytes');
 
-    // Open database with encryption
-    _database = await factory.openDatabase(
-      dbPath,
-      options: common.OpenDatabaseOptions(
+    // For sqflite_sqlcipher, use openDatabase with password parameter
+    if (_databaseFactory == null) {
+      // Real SQLCipher implementation
+      print('[DB] Using SQLCipher with password parameter');
+      _database = await openDatabase(
+        dbPath,
         version: 1,
         onCreate: _onCreate,
-        onConfigure: (db) async {
-          // Set encryption key (only for SQLCipher, not FFI)
-          if (_databaseFactory == null) {
-            await db.rawQuery("PRAGMA key = \"x'$keyHex'\"");
-          }
-
+        password: "x'$keyHex'",  // Use password parameter for SQLCipher
+        onOpen: (db) async {
+          print('[DB] onOpen callback');
           // Enable foreign keys
           await db.execute('PRAGMA foreign_keys = ON');
+          print('[DB] onOpen completed');
         },
-        onOpen: (db) async {
-          // Ensure foreign keys are enabled on every open
-          await db.execute('PRAGMA foreign_keys = ON');
-        },
-      ),
-    );
+      );
+    } else {
+      // Test mode with FFI
+      print('[DB] Using test database factory');
+      _database = await _databaseFactory!.openDatabase(
+        dbPath,
+        options: common.OpenDatabaseOptions(
+          version: 1,
+          onCreate: _onCreate,
+          onOpen: (db) async {
+            print('[DB] onOpen callback (test mode)');
+            await db.execute('PRAGMA foreign_keys = ON');
+          },
+        ),
+      );
+    }
+    print('[DB] Database opened successfully, isOpen: ${_database!.isOpen}');
   }
 
   /// Creates the database schema and inserts default data.
@@ -138,6 +151,26 @@ class DatabaseService {
     // Insert default settings
     final defaultSettings = const AppSettings();
     await db.insert('settings', defaultSettings.toMap());
+
+    // Insert default groups
+    await _createDefaultGroups(db);
+  }
+
+  /// Creates default groups for a new database.
+  ///
+  /// Only creates a single "Default" group. Users can add more groups later
+  /// through the group management interface.
+  Future<void> _createDefaultGroups(common.Database db) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Only create one default group - users can add more as needed
+    await db.insert('groups', {
+      'name': 'Default',
+      'icon': '🔑',
+      'sort_order': 0,
+      'created_at': now,
+      'updated_at': now,
+    });
   }
 
   /// Closes the database connection.

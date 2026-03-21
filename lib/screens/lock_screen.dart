@@ -17,11 +17,92 @@ class _LockScreenState extends State<LockScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometric();
+  }
 
   @override
   void dispose() {
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkBiometric() async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final authService = authProvider.authService;
+
+      // Check if biometric is available on device
+      final available = await authService.checkBiometric();
+
+      // Check if user enabled biometric in settings
+      final enabled = await authService.getBiometricEnabled();
+
+      setState(() {
+        _biometricAvailable = available;
+        _biometricEnabled = enabled;
+      });
+
+      // Auto-trigger biometric if enabled and password is stored
+      if (available && enabled) {
+        // Add a small delay to let UI render first
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          _authenticateWithBiometric();
+        }
+      }
+    } catch (e) {
+      print('[LOCK] Error checking biometric: $e');
+    }
+  }
+
+  Future<void> _authenticateWithBiometric() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final authService = authProvider.authService;
+      final appDir = await getApplicationDocumentsDirectory();
+      final dbPath = path.join(appDir.path, AppConstants.dbName);
+
+      // Use the new unlockWithBiometric method
+      final success = await authService.unlockWithBiometric(dbPath);
+
+      if (!mounted) return;
+
+      if (success) {
+        // Update provider state
+        authProvider.setInitialized(true);
+        // Navigate to home
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        // Biometric failed, let user enter password manually
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication failed. Please enter your password.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      print('[LOCK] Biometric authentication error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Biometric authentication error. Please enter your password.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _unlock() async {
@@ -130,13 +211,44 @@ class _LockScreenState extends State<LockScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('Verifying...'),
+                        ],
                       )
                     : const Text('Unlock'),
               ),
+              if (_biometricAvailable && _biometricEnabled) ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _authenticateWithBiometric,
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Use Biometric'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ],
+              if (_isLoading) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Decrypting database, please wait...',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ),
         ),

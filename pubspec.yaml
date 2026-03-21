@@ -31,7 +31,7 @@ dependencies:
   # UI & Utils
   intl: ^0.18.1
   share_plus: ^7.2.1
-  file_picker: ^6.1.1
+  file_picker: ^8.1.6
 
 dev_dependencies:
   flutter_test:

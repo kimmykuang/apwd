@@ -31,7 +31,11 @@ class _PasswordEditScreenState extends State<PasswordEditScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // 使用 addPostFrameCallback 确保在 build 完成后加载数据
+    // 这样避免在 build 过程中调用 setState/notifyListeners
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   @override
