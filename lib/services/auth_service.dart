@@ -48,9 +48,21 @@ class AuthService {
       throw StateError('Database already initialized');
     }
 
+    // Clear any old salt from secure storage (in case of reinstall)
+    if (_secureStorage != null) {
+      try {
+        await _secureStorage!.delete(key: 'password_salt');
+        print('[AUTH] Cleared old salt from secure storage');
+      } catch (e) {
+        // Ignore errors when clearing old data
+        print('[AUTH] Error clearing old salt: $e');
+      }
+    }
+
     // Generate salt
     final salt = _cryptoService.generateSalt();
     final saltBase64 = base64.encode(salt);
+    print('[AUTH] Generated new salt: ${saltBase64.substring(0, 10)}...');
 
     // Derive key from password
     final derivedKey = await _cryptoService.deriveKey(masterPassword, salt);
@@ -60,21 +72,45 @@ class AuthService {
     // Compute auth hash for verification
     final authHash = _cryptoService.computeAuthHash(authKey);
     final authHashBase64 = base64.encode(authHash);
+    print('[AUTH] Computed auth hash: ${authHashBase64.substring(0, 10)}...');
 
     // Convert dbKey to hex string for SQLCipher
     final dbKeyHex = dbKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
     // Initialize database with encryption
     await _dbService.initialize(dbPath, dbKey);
+    print('[AUTH] Database initialized');
 
     // Store salt and hash in database
     await _dbService.setSetting(AppConstants.settingPasswordSalt, saltBase64);
     await _dbService.setSetting(AppConstants.settingMasterPasswordHash, authHashBase64);
     await _dbService.setBoolSetting(AppConstants.settingFirstLaunchCompleted, true);
+    print('[AUTH] Salt and hash stored in database');
 
-    // Also store salt in secure storage for access before database is unlocked
+    // CRITICAL: Store salt in secure storage for access when database is locked
     if (_secureStorage != null) {
-      await _secureStorage!.write(key: 'password_salt', value: saltBase64);
+      try {
+        print('[AUTH] Attempting to store salt in secure storage...');
+        await _secureStorage!.write(
+          key: 'password_salt',
+          value: saltBase64,
+          aOptions: const AndroidOptions(
+            encryptedSharedPreferences: true,
+          ),
+        );
+        // Verify it was stored
+        final readBack = await _secureStorage!.read(key: 'password_salt');
+        print('[AUTH] Salt stored and verified in secure storage: ${readBack != null}');
+        if (readBack == null) {
+          throw Exception('Salt storage verification failed - secure storage may not be working');
+        }
+      } catch (e) {
+        print('[AUTH] CRITICAL ERROR storing salt in secure storage: $e');
+        // This is critical - we must not continue without the salt
+        throw Exception('Failed to store salt in secure storage: $e');
+      }
+    } else {
+      throw Exception('Secure storage is not available');
     }
 
     // Mark as unlocked
@@ -89,6 +125,9 @@ class AuthService {
     final saltBase64 = await _dbService.getSetting(AppConstants.settingPasswordSalt);
     final storedHashBase64 = await _dbService.getSetting(AppConstants.settingMasterPasswordHash);
 
+    print('[AUTH] verifyMasterPassword - saltBase64 from DB: ${saltBase64 != null ? saltBase64.substring(0, 10) + "..." : "null"}');
+    print('[AUTH] verifyMasterPassword - storedHashBase64 from DB: ${storedHashBase64 != null ? storedHashBase64.substring(0, 10) + "..." : "null"}');
+
     if (saltBase64 == null || storedHashBase64 == null) {
       throw StateError('Master password not set up');
     }
@@ -102,6 +141,8 @@ class AuthService {
 
     // Compute hash and compare
     final computedHash = _cryptoService.computeAuthHash(authKey);
+
+    print('[AUTH] Hash comparison - computed: ${base64.encode(computedHash).substring(0, 10)}..., stored: ${storedHashBase64.substring(0, 10)}...');
 
     return _bytesEqual(computedHash, storedHash);
   }
@@ -133,35 +174,176 @@ class AuthService {
 
   /// Authenticate using biometric (fingerprint, face ID, etc.)
   Future<bool> authenticateWithBiometric() async {
-    if (_localAuth == null) return false;
+    if (_localAuth == null) {
+      print('[AUTH] LocalAuthentication not available');
+      return false;
+    }
 
     try {
+      print('[AUTH] Checking if biometric is available...');
       final isAvailable = await checkBiometric();
-      if (!isAvailable) return false;
+      if (!isAvailable) {
+        print('[AUTH] Biometric not available');
+        return false;
+      }
 
-      return await _localAuth!.authenticate(
+      print('[AUTH] Calling authenticate...');
+      final result = await _localAuth!.authenticate(
         localizedReason: 'Please authenticate to access your passwords',
         options: const AuthenticationOptions(
           stickyAuth: true,
-          biometricOnly: true,
+          biometricOnly: false, // Allow PIN/pattern as fallback
         ),
       );
+      print('[AUTH] Authentication result: $result');
+      return result;
     } catch (e) {
+      print('[AUTH] Error in authenticateWithBiometric: $e');
       return false;
     }
   }
 
   /// Store biometric preference in settings
   Future<void> setBiometricEnabled(bool enabled) async {
+    // Store in database
     await _dbService.setBoolSetting(AppConstants.settingBiometricEnabled, enabled);
+
+    // Also store in secure storage so we can access it when database is locked
+    if (_secureStorage != null) {
+      await _secureStorage!.write(
+        key: 'biometric_enabled',
+        value: enabled.toString(),
+      );
+      print('[AUTH] Biometric enabled status stored: $enabled');
+    }
   }
 
   /// Get biometric preference from settings
+  /// Checks secure storage first (works when DB is locked), falls back to database
   Future<bool> getBiometricEnabled() async {
-    return await _dbService.getBoolSetting(
-      AppConstants.settingBiometricEnabled,
-      defaultValue: false,
-    ) ?? false;
+    // Try secure storage first (works when database is locked)
+    if (_secureStorage != null) {
+      try {
+        final value = await _secureStorage!.read(key: 'biometric_enabled');
+        if (value != null) {
+          print('[AUTH] Biometric enabled from secure storage: $value');
+          return value.toLowerCase() == 'true';
+        }
+      } catch (e) {
+        print('[AUTH] Error reading biometric enabled from secure storage: $e');
+      }
+    }
+
+    // Fall back to database only if unlocked
+    if (_isUnlocked) {
+      try {
+        final enabled = await _dbService.getBoolSetting(
+          AppConstants.settingBiometricEnabled,
+          defaultValue: false,
+        ) ?? false;
+        print('[AUTH] Biometric enabled from database: $enabled');
+        return enabled;
+      } catch (e) {
+        print('[AUTH] Error reading biometric enabled from database: $e');
+      }
+    } else {
+      print('[AUTH] Database locked, cannot read from database');
+    }
+
+    return false;
+  }
+
+  /// Store encrypted master password for biometric unlock
+  /// This should only be called when biometric is enabled
+  Future<void> storeBiometricPassword(String masterPassword) async {
+    print('[AUTH] storeBiometricPassword called');
+    if (_secureStorage == null) {
+      print('[AUTH] Secure storage is null, cannot store password');
+      return;
+    }
+
+    // For simplicity, we store the password encrypted with a device-specific key
+    // In production, you might want to use Android Keystore/iOS Keychain with biometric requirement
+    try {
+      print('[AUTH] Writing password to secure storage...');
+      await _secureStorage!.write(
+        key: 'biometric_password',
+        value: masterPassword,
+        aOptions: const AndroidOptions(
+          encryptedSharedPreferences: true,
+        ),
+        iOptions: const IOSOptions(
+          accessibility: KeychainAccessibility.unlocked_this_device,
+        ),
+      );
+      print('[AUTH] Password stored successfully');
+
+      // Verify password was stored correctly
+      final storedPassword = await _secureStorage!.read(key: 'biometric_password');
+      print('[AUTH] Verification read: ${storedPassword != null ? "SUCCESS" : "FAILED"}');
+    } catch (e) {
+      print('[AUTH] Error storing biometric password: $e');
+      rethrow;
+    }
+  }
+
+  /// Retrieve stored master password for biometric unlock
+  Future<String?> getBiometricPassword() async {
+    if (_secureStorage == null) return null;
+
+    try {
+      return await _secureStorage!.read(key: 'biometric_password');
+    } catch (e) {
+      print('[AUTH] Error reading biometric password: $e');
+      return null;
+    }
+  }
+
+  /// Delete stored biometric password
+  Future<void> deleteBiometricPassword() async {
+    if (_secureStorage == null) return;
+
+    try {
+      await _secureStorage!.delete(key: 'biometric_password');
+      // Also delete the enabled flag
+      await _secureStorage!.delete(key: 'biometric_enabled');
+      print('[AUTH] Biometric password and enabled flag deleted');
+    } catch (e) {
+      print('[AUTH] Error deleting biometric password: $e');
+    }
+  }
+
+  /// Unlock with biometric authentication
+  /// Returns true if unlocked successfully, false otherwise
+  Future<bool> unlockWithBiometric(String dbPath) async {
+    try {
+      // First check if biometric is enabled
+      final biometricEnabled = await getBiometricEnabled();
+      if (!biometricEnabled) {
+        print('[AUTH] Biometric not enabled');
+        return false;
+      }
+
+      // Authenticate with biometric
+      final authenticated = await authenticateWithBiometric();
+      if (!authenticated) {
+        print('[AUTH] Biometric authentication failed');
+        return false;
+      }
+
+      // Get stored password
+      final password = await getBiometricPassword();
+      if (password == null) {
+        print('[AUTH] No biometric password stored');
+        return false;
+      }
+
+      // Unlock with the stored password
+      return await unlock(dbPath, password);
+    } catch (e) {
+      print('[AUTH] Error in unlockWithBiometric: $e');
+      return false;
+    }
   }
 
   /// Start auto-lock timer with configured timeout
@@ -202,40 +384,35 @@ class AuthService {
       String? saltBase64;
       if (_secureStorage != null) {
         saltBase64 = await _secureStorage!.read(key: 'password_salt');
+        print('[AUTH] Salt from secure storage: ${saltBase64 != null ? "found (${saltBase64.substring(0, 10)}...)" : "null"}');
       }
 
-      // If not in secure storage, try opening with dummy key to read from database
+      // If not in secure storage, we cannot proceed (circular dependency)
       if (saltBase64 == null) {
-        // Use a temporary key to open the database and read salt
-        final tempSalt = _cryptoService.generateSalt();
-        final tempDerivedKey = await _cryptoService.deriveKey('temp', tempSalt);
-        final tempDbKey = _cryptoService.getDatabaseKey(tempDerivedKey);
-
-        try {
-          await _dbService.initialize(dbPath, tempDbKey);
-          saltBase64 = await _dbService.getSetting(AppConstants.settingPasswordSalt);
-          await _dbService.close();
-        } catch (e) {
-          // Failed to read salt from database
-          await _dbService.close().catchError((_) {});
-          throw StateError('Password salt not found');
-        }
+        print('[AUTH] CRITICAL: Salt not found in secure storage');
+        print('[AUTH] This likely means the app was reinstalled or secure storage was cleared');
+        throw StateError(
+          'Password salt not found in secure storage. '
+          'This typically happens after app reinstall. '
+          'Please reinstall the app and set up a new master password.'
+        );
       }
 
-      if (saltBase64 == null) {
-        throw StateError('Password salt not found');
-      }
+      print('[AUTH] Using salt: ${saltBase64.substring(0, 10)}...');
 
       // Derive the actual key from master password and salt
       final salt = base64.decode(saltBase64);
       final derivedKey = await _cryptoService.deriveKey(masterPassword, salt);
       final dbKey = _cryptoService.getDatabaseKey(derivedKey);
 
+      print('[AUTH] Opening database with derived key...');
       // Open database with the derived key
       await _dbService.initialize(dbPath, dbKey);
 
+      print('[AUTH] Database opened, verifying password...');
       // Verify password using stored hash
       final isValid = await verifyMasterPassword(masterPassword);
+      print('[AUTH] Password verification result: $isValid');
       if (!isValid) {
         await _dbService.close();
         _isUnlocked = false;
@@ -245,8 +422,11 @@ class AuthService {
       _isUnlocked = true;
       _currentDbKey = dbKey;
       _lastActivityTime = DateTime.now();
+      print('[AUTH] Unlock successful!');
       return true;
     } catch (e) {
+      print('[AUTH] Unlock failed with exception: $e');
+      print('[AUTH] Exception stacktrace: ${StackTrace.current}');
       try {
         await _dbService.close();
       } catch (_) {}
@@ -256,11 +436,21 @@ class AuthService {
   }
 
   /// Lock the application
-  void lock() {
+  Future<void> lock() async {
+    print('[AUTH] Locking application...');
     _isUnlocked = false;
     _currentDbKey = null;
     _lastActivityTime = null;
     stopAutoLockTimer();
+
+    // Close database connection when locking
+    try {
+      await _dbService.close();
+      print('[AUTH] Database closed successfully');
+    } catch (e) {
+      // Ignore errors when closing - database might already be closed
+      print('[AUTH] Error closing database: $e');
+    }
   }
 
   /// Compare two byte arrays

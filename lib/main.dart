@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Services
 import 'services/database_service.dart';
@@ -23,8 +24,13 @@ import 'screens/lock_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/password_detail_screen.dart';
 import 'screens/password_edit_screen.dart';
+import 'screens/groups_screen.dart';
+import 'screens/group_edit_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/unsupported_platform_screen.dart';
+
+// Global navigator key for navigation without context dependency
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   // Web platform is not supported due to SQLCipher incompatibility
@@ -41,10 +47,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Configure secure storage with Android options for proper persistence
+    const secureStorage = FlutterSecureStorage(
+      aOptions: AndroidOptions(
+        encryptedSharedPreferences: true,
+      ),
+    );
+
     // Initialize services
     final dbService = DatabaseService();
     final cryptoService = CryptoService();
-    final authService = AuthService(dbService, cryptoService);
+    final authService = AuthService(
+      dbService,
+      cryptoService,
+      secureStorage: secureStorage,
+    );
     final passwordService = PasswordService(dbService);
     final groupService = GroupService(dbService);
     final generatorService = GeneratorService();
@@ -74,6 +91,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'APWD',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
@@ -132,6 +150,15 @@ class MyApp extends StatelessWidget {
               final passwordId = settings.arguments as int?;
               return MaterialPageRoute(
                 builder: (_) => PasswordEditScreen(passwordId: passwordId),
+              );
+            case '/groups':
+              return MaterialPageRoute(
+                builder: (_) => const GroupsScreen(),
+              );
+            case '/group-edit':
+              final groupId = settings.arguments as int?;
+              return MaterialPageRoute(
+                builder: (_) => GroupEditScreen(groupId: groupId),
               );
             case '/settings':
               return MaterialPageRoute(
