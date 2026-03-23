@@ -12,15 +12,15 @@ void main() {
       print('\n📱 场景1: 首次启动和主密码设置');
 
       app.main();
-      await tester.pumpAndSettle(Duration(seconds: 5));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      // 等待启动页完成 - 增加等待时间
-      await tester.pump(Duration(seconds: 2));
-      await tester.pumpAndSettle(Duration(seconds: 5));
+      // 等待启动页完成
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle(const Duration(seconds: 5));
       await binding.takeScreenshot('01_initial_screen');
 
-      // 查找密码输入框（使用 TextFormField）- 多次尝试
-      await tester.pumpAndSettle(Duration(seconds: 3));
+      // 查找密码输入框（使用 TextFormField）
+      await tester.pumpAndSettle(const Duration(seconds: 3));
       var passwordFields = find.byType(TextFormField);
 
       print('🔍 查找密码输入框: ${passwordFields.evaluate().length} 个');
@@ -28,7 +28,7 @@ void main() {
       // 如果没找到，等待更长时间
       if (passwordFields.evaluate().isEmpty) {
         print('⏳ 第一次未找到，等待页面加载...');
-        await tester.pumpAndSettle(Duration(seconds: 5));
+        await tester.pumpAndSettle(const Duration(seconds: 5));
         passwordFields = find.byType(TextFormField);
         print('🔍 第二次查找: ${passwordFields.evaluate().length} 个');
       }
@@ -36,8 +36,8 @@ void main() {
       // 再试一次
       if (passwordFields.evaluate().isEmpty) {
         print('⏳ 第二次未找到，再次等待...');
-        await tester.pump(Duration(seconds: 3));
-        await tester.pumpAndSettle(Duration(seconds: 5));
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle(const Duration(seconds: 5));
         passwordFields = find.byType(TextFormField);
         print('🔍 第三次查找: ${passwordFields.evaluate().length} 个');
       }
@@ -46,11 +46,11 @@ void main() {
 
       // 输入主密码
       await tester.enterText(passwordFields.first, 'TestPassword123!');
-      await tester.pumpAndSettle(Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       // 输入确认密码
       await tester.enterText(passwordFields.at(1), 'TestPassword123!');
-      await tester.pumpAndSettle(Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       await binding.takeScreenshot('02_passwords_entered');
 
@@ -63,8 +63,10 @@ void main() {
 
       await binding.takeScreenshot('03_after_create');
 
-      // 验证进入主页
+      // 验证进入主页 - 由于addPostFrameCallback，需要额外等待
       print('📋 验证是否进入主页面...');
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+
       final homeText = find.text('No passwords yet');
       expect(homeText, findsOneWidget, reason: '应该显示主页面的"No passwords yet"文字');
 
@@ -74,8 +76,8 @@ void main() {
       // ========== 场景2: 添加密码条目 ==========
       print('\n📱 场景2: 添加密码条目');
 
-      // 等待页面完全加载
-      await tester.pumpAndSettle(Duration(seconds: 2));
+      // 等待页面完全加载（addPostFrameCallback延迟）
+      await tester.pumpAndSettle(const Duration(seconds: 3));
 
       // 查找添加按钮
       final addButton = find.byType(FloatingActionButton);
@@ -83,7 +85,7 @@ void main() {
 
       print('✅ 找到添加按钮');
       await tester.tap(addButton);
-      await tester.pumpAndSettle(Duration(seconds: 2));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
 
       await binding.takeScreenshot('05_add_password_screen');
 
@@ -98,6 +100,9 @@ void main() {
       // ========== 关键测试：检查 Group 下拉框 ==========
       print('\n🔍 关键测试：检查 Group 下拉框');
 
+      // 等待GroupProvider加载完成（addPostFrameCallback延迟）
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
       final groupDropdown = find.byType(DropdownButtonFormField<int>);
       print('   查找 DropdownButtonFormField<int>: ${groupDropdown.evaluate().length} 个');
 
@@ -107,7 +112,7 @@ void main() {
         tester.allWidgets.take(30).forEach((widget) {
           if (widget.runtimeType.toString().contains('Dropdown') ||
               widget.runtimeType.toString().contains('Form') ||
-              widget.runtimeType.toString().contains('Text')) {
+              widget.runtimeType.toString().contains('Card')) {
             print('      - ${widget.runtimeType}');
           }
         });
@@ -135,24 +140,24 @@ void main() {
       expect(passwordField, findsOneWidget, reason: '应该有 Password 输入框');
 
       await tester.enterText(titleField, 'GitHub测试账号');
-      await tester.pumpAndSettle(Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       await tester.enterText(usernameField, 'test@github.com');
-      await tester.pumpAndSettle(Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       await tester.enterText(passwordField, 'SecurePassword123!');
-      await tester.pumpAndSettle(Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       await binding.takeScreenshot('07_form_filled');
       print('✅ 表单填写完成');
 
-      // 保存密码
-      final saveButton = find.text('Add Password').last; // 获取按钮而不是标题
-      if (saveButton.evaluate().isNotEmpty) {
-        await tester.tap(saveButton);
-        await tester.pumpAndSettle(Duration(seconds: 2));
-        print('✅ 点击保存按钮');
-      }
+      // 保存密码 - 使用底部的ElevatedButton
+      final saveButton = find.widgetWithText(ElevatedButton, 'Add Password');
+      expect(saveButton, findsOneWidget, reason: '应该有保存按钮');
+
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle(const Duration(seconds: 3));
+      print('✅ 点击保存按钮');
 
       await binding.takeScreenshot('08_password_saved');
 
@@ -165,7 +170,7 @@ void main() {
       print('\n📱 场景3: 查看密码详情');
 
       await tester.tap(savedPassword);
-      await tester.pumpAndSettle(Duration(seconds: 1));
+      await tester.pumpAndSettle(const Duration(seconds: 2));
 
       await binding.takeScreenshot('09_password_detail');
 
@@ -179,7 +184,7 @@ void main() {
       final backButton = find.byType(BackButton);
       if (backButton.evaluate().isNotEmpty) {
         await tester.tap(backButton);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(seconds: 2));
       }
 
       // 搜索（简化测试，只验证搜索框存在）
@@ -205,7 +210,7 @@ void main() {
       expect(manageGroupsItem, findsOneWidget, reason: '应该有 Manage Groups 菜单项');
 
       await tester.tap(manageGroupsItem);
-      await tester.pumpAndSettle(Duration(seconds: 2));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
 
       await binding.takeScreenshot('11_groups_screen');
 
@@ -243,18 +248,18 @@ void main() {
       expect(groupNameField, findsOneWidget, reason: '应该有 Group Name 输入框');
 
       await tester.enterText(groupNameField, 'Work');
-      await tester.pumpAndSettle(Duration(milliseconds: 500));
+      await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       await binding.takeScreenshot('13_group_form_filled');
       print('✅ Group 信息填写完成');
 
-      // 保存 Group
-      final createGroupButton = find.text('Create Group');
-      if (createGroupButton.evaluate().isNotEmpty) {
-        await tester.tap(createGroupButton);
-        await tester.pumpAndSettle(Duration(seconds: 2));
-        print('✅ 保存 Group');
-      }
+      // 保存 Group - 使用ElevatedButton
+      final createGroupButton = find.widgetWithText(ElevatedButton, 'Create Group');
+      expect(createGroupButton, findsOneWidget, reason: '应该有 Create Group 按钮');
+
+      await tester.tap(createGroupButton);
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+      print('✅ 保存 Group');
 
       await binding.takeScreenshot('14_groups_with_new_group');
 
@@ -269,11 +274,14 @@ void main() {
       final backToHome = find.byType(BackButton);
       if (backToHome.evaluate().isNotEmpty) {
         await tester.tap(backToHome);
-        await tester.pumpAndSettle(Duration(seconds: 2));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
       }
 
       print('\n🎉 完整流程测试完成！所有核心场景通过！');
-      print('📝 注意：Group 分组展示功能已实现（代码在 home_screen.dart）');
+      print('📝 测试已更新以适配最近的代码变更：');
+      print('   - 适配 addPostFrameCallback 延迟加载模式');
+      print('   - 更新按钮查找方式（使用 widgetWithText）');
+      print('   - 增加等待时间以适应异步加载');
     });
   });
 }

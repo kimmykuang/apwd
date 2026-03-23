@@ -10,12 +10,15 @@ import 'services/crypto_service.dart';
 import 'services/password_service.dart';
 import 'services/group_service.dart';
 import 'services/generator_service.dart';
+import 'services/export_import_service.dart';
+import 'services/webdav_service.dart';
 
 // Providers
 import 'providers/auth_provider.dart';
 import 'providers/password_provider.dart';
 import 'providers/group_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/webdav_provider.dart';
 
 // Screens
 import 'screens/splash_screen.dart';
@@ -65,6 +68,13 @@ class MyApp extends StatelessWidget {
     final passwordService = PasswordService(dbService);
     final groupService = GroupService(dbService);
     final generatorService = GeneratorService();
+    final exportImportService = ExportImportService(
+      dbService,
+      cryptoService,
+      groupService,
+      passwordService,
+    );
+    final webdavService = WebDavService();
 
     return MultiProvider(
       providers: [
@@ -75,6 +85,8 @@ class MyApp extends StatelessWidget {
         Provider<PasswordService>.value(value: passwordService),
         Provider<GroupService>.value(value: groupService),
         Provider<GeneratorService>.value(value: generatorService),
+        Provider<ExportImportService>.value(value: exportImportService),
+        Provider<WebDavService>.value(value: webdavService),
 
         // Providers
         ChangeNotifierProvider(
@@ -88,6 +100,13 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => SettingsProvider(dbService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => WebDavProvider(
+            webdavService,
+            exportImportService,
+            dbService,
+          ),
         ),
       ],
       child: MaterialApp(

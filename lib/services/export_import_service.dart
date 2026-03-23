@@ -280,4 +280,59 @@ class ExportImportService {
       throw ExportImportException('Backup restoration failed: ${e.toString()}');
     }
   }
+
+  /// Create temporary backup file for WebDAV upload
+  ///
+  /// Creates a backup file in the system temp directory and returns its path.
+  /// The file should be deleted after upload.
+  ///
+  /// [password] - Password to encrypt the backup
+  /// Returns the path to the temporary backup file
+  Future<String> createTempBackup(String password) async {
+    try {
+      // Generate backup filename with timestamp
+      final fileName = generateBackupFileName();
+
+      // Get temp directory
+      final tempDir = Directory.systemTemp;
+      final filePath = '${tempDir.path}/$fileName';
+
+      // Create backup
+      await createBackup(filePath, password);
+
+      return filePath;
+    } catch (e) {
+      throw ExportImportException('Temp backup creation failed: ${e.toString()}');
+    }
+  }
+
+  /// Restore from file path (alias for restoreBackup for consistency)
+  ///
+  /// [filePath] - Path to the backup file
+  /// [password] - Password to decrypt the backup
+  /// [overwrite] - If true, overwrite existing entries
+  Future<void> restoreFromFile(
+    String filePath,
+    String password, {
+    bool overwrite = false,
+  }) async {
+    await restoreBackup(filePath, password, overwrite: overwrite);
+  }
+
+  /// Generate backup filename with timestamp
+  ///
+  /// Returns filename in format: apwd_backup_YYYYMMDD_HHMMSS.apwd
+  /// Example: apwd_backup_20260323_143022.apwd
+  String generateBackupFileName() {
+    final now = DateTime.now();
+    final timestamp = '${now.year}'
+        '${now.month.toString().padLeft(2, '0')}'
+        '${now.day.toString().padLeft(2, '0')}'
+        '_'
+        '${now.hour.toString().padLeft(2, '0')}'
+        '${now.minute.toString().padLeft(2, '0')}'
+        '${now.second.toString().padLeft(2, '0')}';
+
+    return 'apwd_backup_$timestamp${AppConstants.exportFileExtension}';
+  }
 }

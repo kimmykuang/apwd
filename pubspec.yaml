@@ -28,6 +28,10 @@ dependencies:
   # State Management
   provider: ^6.1.1
 
+  # Network & WebDAV
+  dio: ^5.4.0
+  webdav_client: ^1.2.2
+
   # UI & Utils
   intl: ^0.18.1
   share_plus: ^7.2.1

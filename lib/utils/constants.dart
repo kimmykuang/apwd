@@ -28,10 +28,18 @@ class AppConstants {
   static const String settingClipboardClearTimeout = 'clipboard_clear_timeout';
   static const String settingFirstLaunchCompleted = 'first_launch_completed';
 
+  // WebDAV Settings Keys
+  static const String settingWebdavUrl = 'webdav_url';
+  static const String settingWebdavRemotePath = 'webdav_remote_path';
+  static const String settingWebdavEnabled = 'webdav_enabled';
+  static const String settingWebdavLastBackup = 'webdav_last_backup';
+
   // Export/Import
   static const String exportFileExtension = '.apwd';
   static const String exportFormatVersion = '1.0';
 
   // Secure Storage Keys
   static const String secureStorageDbKey = 'db_key';
+  static const String secureStorageWebdavUsername = 'webdav_username';
+  static const String secureStorageWebdavPassword = 'webdav_password';
 }
