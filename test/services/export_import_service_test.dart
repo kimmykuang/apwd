@@ -107,7 +107,7 @@ void main() {
       final decrypted = cryptoService.decryptText(parsed['data'], encryptionKey);
       final data = json.decode(decrypted);
 
-      expect(data['groups'], hasLength(2));
+      expect(data['groups'], hasLength(3)); // 2 created + 1 default
     });
 
     test('should include all passwords in export', () async {
@@ -193,10 +193,10 @@ void main() {
       // Import
       await exportImportService.importFromJson(exportData, 'test_password');
 
-      // Verify imported data
+      // Verify imported data (including default group created on init)
       final groups = await groupService.getAll();
-      expect(groups, hasLength(1));
-      expect(groups[0].name, equals('Original Group'));
+      expect(groups, hasLength(2)); // 1 imported + 1 default
+      expect(groups.any((g) => g.name == 'Original Group'), isTrue);
 
       final passwords = await passwordService.getAll();
       expect(passwords, hasLength(1));
@@ -234,6 +234,9 @@ void main() {
     });
 
     test('should skip existing entries when overwrite is false', () async {
+      // Delete default group first to avoid ID conflict
+      await groupService.delete(1);
+
       // Create initial data
       final group = Group(
         id: 1,
@@ -280,6 +283,9 @@ void main() {
     });
 
     test('should overwrite existing entries when overwrite is true', () async {
+      // Delete default group first to avoid ID conflict
+      await groupService.delete(1);
+
       // Create initial data
       final group = Group(
         id: 1,
@@ -401,10 +407,10 @@ void main() {
       // Restore
       await exportImportService.restoreBackup(backupPath, 'backup_password');
 
-      // Verify restored data
+      // Verify restored data (including default group created on init)
       final groups = await groupService.getAll();
-      expect(groups, hasLength(1));
-      expect(groups[0].name, equals('Restore Group'));
+      expect(groups, hasLength(2)); // 1 restored + 1 default
+      expect(groups.any((g) => g.name == 'Restore Group'), isTrue);
 
       final passwords = await passwordService.getAll();
       expect(passwords, hasLength(1));
