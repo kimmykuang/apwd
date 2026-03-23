@@ -1,0 +1,77 @@
+# tests/e2e/scenarios/export_import_test.yaml
+name: "本地导出和导入"
+description: "测试本地备份文件的导出和导入功能"
+type: "test"
+requires_state: "standard_state"
+
+steps:
+  - id: "export_backup"
+    action: "export_to_file"
+    description: "导出备份到本地文件"
+    params:
+      encryption_password: "BackupPass123!"
+    expected:
+      export_success: true
+      file_generated: true
+      file_pattern: "apwd_backup_*.apwd"
+
+  - id: "verify_file_exists"
+    action: "check_file_exists"
+    description: "验证 .apwd 文件已生成"
+    expected:
+      file_exists: true
+      file_size_gt: 0
+
+  - id: "clear_local_data"
+    action: "clear_app_data"
+    description: "清空本地数据库"
+    script: "tests/e2e/utils/clean_app_data.py"
+    expected:
+      data_cleared: true
+
+  - id: "import_backup"
+    action: "import_from_file"
+    description: "从本地文件导入备份"
+    params:
+      file_path: "${EXPORTED_FILE_PATH}"
+      encryption_password: "BackupPass123!"
+    expected:
+      import_success: true
+      message: "Import completed"
+
+  - id: "verify_passwords_restored"
+    action: "verify_password_list"
+    description: "验证密码已恢复"
+    expected:
+      password_count: 3
+      titles: ["GitHub", "Gmail", "AWS Console"]
+
+  - id: "verify_password_details"
+    action: "verify_each_password"
+    description: "验证每个密码的详细信息"
+    passwords:
+      - title: "GitHub"
+        username: "test@github.com"
+        group: "Default"
+      - title: "Gmail"
+        username: "test@gmail.com"
+        group: "Default"
+      - title: "AWS Console"
+        username: "test@aws.com"
+        group: "Work"
+    expected:
+      all_details_correct: true
+
+  - id: "cleanup"
+    action: "delete_backup_file"
+    description: "清理测试生成的备份文件"
+    params:
+      file_path: "${EXPORTED_FILE_PATH}"
+    expected:
+      file_deleted: true
+
+success_criteria:
+  - "导出生成 .apwd 文件"
+  - "导入恢复所有数据"
+  - "数据内容准确无误"
+  - "测试文件已清理"
