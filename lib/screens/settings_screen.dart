@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/webdav_provider.dart';
 import '../utils/constants.dart';
 import '../main.dart' show navigatorKey;
 
@@ -24,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     await context.read<SettingsProvider>().loadSettings();
+    await context.read<WebDavProvider>().loadSettings();
   }
 
   Future<void> _showEnableBiometricDialog(BuildContext context) async {
@@ -274,6 +276,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               const Divider(),
+              const _SectionHeader('WebDAV Backup'),
+              Consumer<WebDavProvider>(
+                builder: (context, webdavProvider, _) {
+                  return Column(
+                    children: [
+                      SwitchListTile(
+                        secondary: const Icon(Icons.cloud_sync),
+                        title: const Text('Enable WebDAV Sync'),
+                        subtitle: Text(
+                          webdavProvider.webdavEnabled
+                              ? 'Enabled'
+                              : 'Disabled',
+                        ),
+                        value: webdavProvider.webdavEnabled,
+                        onChanged: (value) async {
+                          if (value) {
+                            // Show configuration dialog when enabling
+                            await _showWebDavConfigDialog(webdavProvider);
+                          } else {
+                            // Disable directly
+                            await webdavProvider.saveSettings(enabled: false);
+                          }
+                        },
+                      ),
+                      if (webdavProvider.webdavEnabled) ...[
+                        ListTile(
+                          leading: const Icon(Icons.settings),
+                          title: const Text('WebDAV Settings'),
+                          subtitle: Text(webdavProvider.webdavUrl ?? 'Not configured'),
+                          onTap: () => _showWebDavConfigDialog(webdavProvider),
+                        ),
+                        if (webdavProvider.lastBackupTime != null)
+                          ListTile(
+                            leading: const Icon(Icons.access_time),
+                            title: const Text('Last Backup'),
+                            subtitle: Text(
+                              _formatDateTime(webdavProvider.lastBackupTime!),
+                            ),
+                          ),
+                        ListTile(
+                          leading: const Icon(Icons.backup),
+                          title: const Text('Backup to WebDAV'),
+                          subtitle: const Text('Upload encrypted backup to server'),
+                          trailing: webdavProvider.isUploading
+                              ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    value: webdavProvider.uploadProgress,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.cloud_upload),
+                          onTap: webdavProvider.isUploading
+                              ? null
+                              : () => _showBackupDialog(webdavProvider),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.restore),
+                          title: const Text('Restore from WebDAV'),
+                          subtitle: const Text('Download and restore backup'),
+                          trailing: webdavProvider.isDownloading
+                              ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    value: webdavProvider.downloadProgress,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.cloud_download),
+                          onTap: webdavProvider.isDownloading
+                              ? null
+                              : () => _showRestoreDialog(webdavProvider),
+                        ),
+                      ],
+                      if (webdavProvider.statusMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            webdavProvider.statusMessage!,
+                            style: TextStyle(
+                              color: webdavProvider.statusMessage!.contains('成功')
+                                  ? Colors.green
+                                  : Colors.red,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const Divider(),
               const _SectionHeader('About'),
               ListTile(
                 leading: const Icon(Icons.info),
@@ -381,6 +480,405 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-'
+        '${dateTime.day.toString().padLeft(2, '0')} '
+        '${dateTime.hour.toString().padLeft(2, '0')}:'
+        '${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _showWebDavConfigDialog(WebDavProvider webdavProvider) async {
+    final urlController = TextEditingController(
+      text: webdavProvider.webdavUrl ?? '',
+    );
+    final usernameController = TextEditingController(
+      text: webdavProvider.webdavUsername ?? '',
+    );
+    final passwordController = TextEditingController();
+    final remotePathController = TextEditingController(
+      text: webdavProvider.webdavRemotePath ?? '/APWD',
+    );
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('WebDAV Settings'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: urlController,
+                decoration: const InputDecoration(
+                  labelText: 'Server URL',
+                  hintText: 'https://cloud.example.com/remote.php/dav',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: remotePathController,
+                decoration: const InputDecoration(
+                  labelText: 'Remote Path',
+                  hintText: '/APWD',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Test connection first
+              final url = urlController.text.trim();
+              final username = usernameController.text.trim();
+              final password = passwordController.text;
+              final remotePath = remotePathController.text.trim();
+
+              if (url.isEmpty || username.isEmpty || password.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please fill in all fields'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              // Show testing indicator
+              showDialog(
+                context: dialogContext,
+                barrierDismissible: false,
+                builder: (loadingContext) => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+
+              try {
+                final success = await webdavProvider.testConnection(
+                  url: url,
+                  username: username,
+                  password: password,
+                  remotePath: remotePath.isEmpty ? null : remotePath,
+                );
+
+                // Close loading dialog
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+
+                if (success) {
+                  // Save settings
+                  await webdavProvider.saveSettings(
+                    url: url,
+                    username: username,
+                    password: password,
+                    remotePath: remotePath.isEmpty ? null : remotePath,
+                    enabled: true,
+                  );
+
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(true);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('WebDAV configured successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                // Close loading dialog
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Connection failed: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Test & Save'),
+          ),
+        ],
+      ),
+    );
+
+    urlController.dispose();
+    usernameController.dispose();
+    passwordController.dispose();
+    remotePathController.dispose();
+  }
+
+  Future<void> _showBackupDialog(WebDavProvider webdavProvider) async {
+    final passwordController = TextEditingController();
+
+    final confirmed = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Backup to WebDAV'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Enter a password to encrypt your backup. This can be different from your master password.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Backup Password',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '⚠️ Important: Store this password safely. You will need it to restore your backup.',
+              style: TextStyle(fontSize: 12, color: Colors.orange),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(
+              passwordController.text,
+            ),
+            child: const Text('Backup'),
+          ),
+        ],
+      ),
+    );
+
+    passwordController.dispose();
+
+    if (confirmed == null || confirmed.isEmpty || !mounted) return;
+
+    try {
+      await webdavProvider.backupToWebDAV(confirmed);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Backup completed successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRestoreDialog(WebDavProvider webdavProvider) async {
+    try {
+      // Load available backups
+      await webdavProvider.loadAvailableBackups();
+
+      if (!mounted) return;
+
+      final backups = webdavProvider.availableBackups;
+
+      if (backups.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No backups found on WebDAV server'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Show backup selection dialog
+      final selectedBackup = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Select Backup'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: backups.length,
+              itemBuilder: (context, index) {
+                final backup = backups[index];
+                return ListTile(
+                  title: Text(backup.name),
+                  subtitle: Text(
+                    '${backup.formattedSize} • ${backup.modifiedTime != null ? _formatDateTime(backup.modifiedTime!) : "Unknown date"}',
+                  ),
+                  onTap: () => Navigator.of(dialogContext).pop(backup.name),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+
+      if (selectedBackup == null || !mounted) return;
+
+      // Show restore options dialog
+      final passwordController = TextEditingController();
+      bool overwrite = false;
+
+      final confirmed = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Restore from Backup'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('File: $selectedBackup'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Backup Password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Import Mode:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                RadioListTile<bool>(
+                  title: const Text('Skip existing entries'),
+                  subtitle: const Text('Keep current data for duplicates'),
+                  value: false,
+                  groupValue: overwrite,
+                  onChanged: (value) {
+                    setState(() => overwrite = value ?? false);
+                  },
+                ),
+                RadioListTile<bool>(
+                  title: const Text('Overwrite existing entries'),
+                  subtitle: const Text('Replace current data with backup'),
+                  value: true,
+                  groupValue: overwrite,
+                  onChanged: (value) {
+                    setState(() => overwrite = value ?? false);
+                  },
+                ),
+                if (overwrite)
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text(
+                      '⚠️ Warning: Existing passwords will be replaced',
+                      style: TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop({
+                  'password': passwordController.text,
+                  'overwrite': overwrite,
+                }),
+                child: const Text('Restore'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      passwordController.dispose();
+
+      if (confirmed == null || !mounted) return;
+
+      final password = confirmed['password'] as String;
+      final shouldOverwrite = confirmed['overwrite'] as bool;
+
+      if (password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password is required'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Perform restore
+      await webdavProvider.restoreFromWebDAV(
+        selectedBackup,
+        password,
+        overwrite: shouldOverwrite,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Restore completed successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Restore failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 
