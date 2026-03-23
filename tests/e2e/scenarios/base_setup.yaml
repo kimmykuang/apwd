@@ -1,0 +1,41 @@
+# tests/e2e/scenarios/base_setup.yaml
+name: "首次安装设置主密码"
+description: "全新安装 APWD，完成主密码设置流程"
+type: "base"
+
+preconditions:
+  - simulator_running: true
+  - app_installed: true
+  - app_state: "fresh_install"
+
+steps:
+  - id: "step1"
+    action: "verify_initial_screen"
+    description: "验证首次启动显示设置密码页面"
+    expected:
+      screen: "SetupPasswordScreen"
+      elements: ["密码输入框", "确认密码输入框", "Create Password按钮"]
+
+  - id: "step2"
+    action: "enter_master_password"
+    description: "输入主密码和确认密码"
+    params:
+      password: "TestPassword123!"
+    timeout: 30
+    retry_on_failure: 2
+    fallback:
+      - "截图当前界面，检查是否有输入框可见"
+      - "如果界面不正确，重启应用并重试"
+    expected:
+      both_fields_filled: true
+
+  - id: "step3"
+    action: "tap_create_button"
+    description: "点击 Create Password 按钮"
+    expected:
+      navigation: "HomeScreen"
+      message: "No passwords yet"
+
+post_state:
+  name: "master_password_set"
+  description: "主密码已设置，进入空白主页面"
