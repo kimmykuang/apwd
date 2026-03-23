@@ -1,0 +1,42 @@
+# tests/e2e/scenarios/search_test.yaml
+name: "搜索密码功能测试"
+description: "验证搜索功能能正确找到已存在的密码"
+type: "test"
+requires_state: "standard_state"
+
+steps:
+  - id: "search_existing"
+    action: "search_password"
+    description: "搜索已存在的密码 GitHub"
+    params:
+      query: "GitHub"
+    timeout: 30
+    retry_on_failure: 2
+    expected:
+      found: true
+      result_count: 1
+      first_result_title: "GitHub"
+
+  - id: "view_details"
+    action: "tap_search_result"
+    description: "点击搜索结果进入详情页"
+    params:
+      index: 0
+    expected:
+      screen: "PasswordDetailScreen"
+      title: "GitHub"
+      username: "test@github.com"
+
+  - id: "search_nonexistent"
+    action: "go_back_and_search"
+    description: "返回主页，搜索不存在的密码"
+    params:
+      query: "NonExistent"
+    expected:
+      found: false
+      message: "No results found"
+
+success_criteria:
+  - "所有步骤的 expected 条件都满足"
+  - "每步都有截图记录"
+  - "无异常或崩溃"
