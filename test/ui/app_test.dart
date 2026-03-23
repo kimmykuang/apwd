@@ -4,7 +4,7 @@ import 'package:apwd/main.dart' as app;
 import 'package:flutter/material.dart';
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('APWD 完整流程测试', () {
     testWidgets('完整用户流程：从设置主密码到添加密码', (WidgetTester tester) async {
@@ -17,7 +17,6 @@ void main() {
       // 等待启动页完成
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle(const Duration(seconds: 5));
-      await binding.takeScreenshot('01_initial_screen');
 
       // 查找密码输入框（使用 TextFormField）
       await tester.pumpAndSettle(const Duration(seconds: 3));
@@ -52,16 +51,14 @@ void main() {
       await tester.enterText(passwordFields.at(1), 'TestPassword123!');
       await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
-      await binding.takeScreenshot('02_passwords_entered');
 
       // 点击创建按钮
       final createButton = find.text('Create Password');
       expect(createButton, findsOneWidget, reason: '应该有创建按钮');
 
       await tester.tap(createButton);
-      await tester.pumpAndSettle(Duration(seconds: 3));
+      await tester.pumpAndSettle(const Duration(seconds: 3));
 
-      await binding.takeScreenshot('03_after_create');
 
       // 验证进入主页 - 由于addPostFrameCallback，需要额外等待
       print('📋 验证是否进入主页面...');
@@ -70,7 +67,6 @@ void main() {
       final homeText = find.text('No passwords yet');
       expect(homeText, findsOneWidget, reason: '应该显示主页面的"No passwords yet"文字');
 
-      await binding.takeScreenshot('04_home_screen');
       print('✅ 场景1完成：成功设置主密码并进入主页面\n');
 
       // ========== 场景2: 添加密码条目 ==========
@@ -87,7 +83,6 @@ void main() {
       await tester.tap(addButton);
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
-      await binding.takeScreenshot('05_add_password_screen');
 
       // 验证进入添加密码页面（AppBar中的标题）
       final addPasswordTitle = find.ancestor(
@@ -128,7 +123,6 @@ void main() {
       }
 
       print('   ✅ 找到 Group 下拉框');
-      await binding.takeScreenshot('06_group_dropdown');
 
       // 填写密码信息
       final titleField = find.widgetWithText(TextFormField, 'Title');
@@ -148,7 +142,6 @@ void main() {
       await tester.enterText(passwordField, 'SecurePassword123!');
       await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
-      await binding.takeScreenshot('07_form_filled');
       print('✅ 表单填写完成');
 
       // 保存密码 - 使用底部的ElevatedButton
@@ -159,7 +152,6 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 3));
       print('✅ 点击保存按钮');
 
-      await binding.takeScreenshot('08_password_saved');
 
       // 验证密码已添加
       final savedPassword = find.text('GitHub测试账号');
@@ -172,7 +164,6 @@ void main() {
       await tester.tap(savedPassword);
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
-      await binding.takeScreenshot('09_password_detail');
 
       expect(find.text('test@github.com'), findsOneWidget, reason: '应该显示用户名');
       print('✅ 场景3完成：成功查看密码详情\n');
@@ -203,7 +194,7 @@ void main() {
       expect(menuButton, findsOneWidget, reason: '应该有菜单按钮');
 
       await tester.tap(menuButton);
-      await tester.pumpAndSettle(Duration(seconds: 1));
+      await tester.pumpAndSettle(const Duration(seconds: 1));
 
       // 点击 Manage Groups
       final manageGroupsItem = find.text('Manage Groups');
@@ -212,7 +203,6 @@ void main() {
       await tester.tap(manageGroupsItem);
       await tester.pumpAndSettle(const Duration(seconds: 3));
 
-      await binding.takeScreenshot('11_groups_screen');
 
       // 验证进入 Groups 管理页面
       expect(find.text('Manage Groups'), findsOneWidget, reason: '应该显示 Manage Groups 标题');
@@ -228,9 +218,8 @@ void main() {
       expect(addGroupButton, findsOneWidget, reason: '应该有添加 Group 按钮');
 
       await tester.tap(addGroupButton);
-      await tester.pumpAndSettle(Duration(seconds: 2));
+      await tester.pumpAndSettle(const Duration(seconds: 2));
 
-      await binding.takeScreenshot('12_add_group_screen');
 
       // 验证进入添加 Group 页面
       expect(find.text('Add Group'), findsOneWidget, reason: '应该显示 Add Group 标题');
@@ -250,7 +239,6 @@ void main() {
       await tester.enterText(groupNameField, 'Work');
       await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
-      await binding.takeScreenshot('13_group_form_filled');
       print('✅ Group 信息填写完成');
 
       // 保存 Group - 使用ElevatedButton
@@ -261,7 +249,6 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 2));
       print('✅ 保存 Group');
 
-      await binding.takeScreenshot('14_groups_with_new_group');
 
       // 验证新 Group 已添加
       final newGroups = find.text('Work');

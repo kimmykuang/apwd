@@ -40,21 +40,16 @@ flutter test test/ui/app_test.dart -d iPhone
 flutter test test/ui/app_test.dart -d emulator-5554
 ```
 
-### 截图
-
-测试运行时会自动生成截图，保存在：
-- iOS: `build/app/outputs/`
-- Android: `/sdcard/Pictures/`
-
 ## 最近更新
 
 - ✅ 适配 `addPostFrameCallback` 延迟加载模式
 - ✅ 更新按钮查找方式（使用 `widgetWithText`）
 - ✅ 增加等待时间以适应异步加载
 - ✅ 从 `integration_test/` 移动到 `test/ui/`
+- ✅ 移除截图功能以简化测试运行
 
 ## 注意事项
 
-- UI测试需要在真实设备或模拟器上运行，不能使用 `flutter test` 直接运行
+- UI测试需要在真实设备或模拟器上运行
 - 测试会创建临时数据，完成后会自动清理
-- 确保设备有足够的存储空间用于截图
+- 测试不再生成截图（已移除 `takeScreenshot` 调用）
