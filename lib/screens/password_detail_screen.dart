@@ -19,7 +19,10 @@ class _PasswordDetailScreenState extends State<PasswordDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPassword();
+    // Load password after the first frame to avoid calling notifyListeners during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPassword();
+    });
   }
 
   Future<void> _loadPassword() async {

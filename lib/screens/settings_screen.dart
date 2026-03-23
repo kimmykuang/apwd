@@ -504,214 +504,224 @@ class _SettingsScreenState extends State<SettingsScreen> {
       text: webdavProvider.webdavRemotePath ?? '/APWD',
     );
 
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('WebDAV Settings'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(
-                  labelText: 'Server URL',
-                  hintText: 'https://cloud.example.com/remote.php/dav',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: remotePathController,
-                decoration: const InputDecoration(
-                  labelText: 'Remote Path',
-                  hintText: '/APWD',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Test connection first
-              final url = urlController.text.trim();
-              final username = usernameController.text.trim();
-              final password = passwordController.text;
-              final remotePath = remotePathController.text.trim();
-
-              if (url.isEmpty || username.isEmpty || password.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please fill in all fields'),
-                    backgroundColor: Colors.red,
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('WebDAV Settings'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: urlController,
+                  decoration: const InputDecoration(
+                    labelText: 'Server URL',
+                    hintText: 'https://cloud.example.com/remote.php/dav',
+                    border: OutlineInputBorder(),
                   ),
-                );
-                return;
-              }
-
-              // Show testing indicator
-              showDialog(
-                context: dialogContext,
-                barrierDismissible: false,
-                builder: (loadingContext) => const Center(
-                  child: CircularProgressIndicator(),
                 ),
-              );
+                const SizedBox(height: 16),
+                TextField(
+                  controller: usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Username',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: remotePathController,
+                  decoration: const InputDecoration(
+                    labelText: 'Remote Path',
+                    hintText: '/APWD',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                // Test connection first
+                final url = urlController.text.trim();
+                final username = usernameController.text.trim();
+                final password = passwordController.text;
+                final remotePath = remotePathController.text.trim();
 
-              try {
-                final success = await webdavProvider.testConnection(
-                  url: url,
-                  username: username,
-                  password: password,
-                  remotePath: remotePath.isEmpty ? null : remotePath,
-                );
-
-                // Close loading dialog
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
+                if (url.isEmpty || username.isEmpty || password.isEmpty) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please fill in all fields'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                  return;
                 }
 
-                if (success) {
-                  // Save settings
-                  await webdavProvider.saveSettings(
+                // Show testing indicator
+                showDialog(
+                  context: dialogContext,
+                  barrierDismissible: false,
+                  builder: (loadingContext) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+
+                try {
+                  final success = await webdavProvider.testConnection(
                     url: url,
                     username: username,
                     password: password,
                     remotePath: remotePath.isEmpty ? null : remotePath,
-                    enabled: true,
                   );
 
+                  // Close loading dialog
                   if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop(true);
+                    Navigator.of(dialogContext).pop();
+                  }
+
+                  if (success) {
+                    // Save settings
+                    await webdavProvider.saveSettings(
+                      url: url,
+                      username: username,
+                      password: password,
+                      remotePath: remotePath.isEmpty ? null : remotePath,
+                      enabled: true,
+                    );
+
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('WebDAV configured successfully!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // Close loading dialog
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('WebDAV configured successfully!'),
-                        backgroundColor: Colors.green,
+                      SnackBar(
+                        content: Text('Connection failed: ${e.toString()}'),
+                        backgroundColor: Colors.red,
                       ),
                     );
                   }
                 }
-              } catch (e) {
-                // Close loading dialog
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
-                }
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Connection failed: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Test & Save'),
-          ),
-        ],
-      ),
-    );
-
-    urlController.dispose();
-    usernameController.dispose();
-    passwordController.dispose();
-    remotePathController.dispose();
+              },
+              child: const Text('Test & Save'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      // Dispose controllers after dialog is fully closed
+      urlController.dispose();
+      usernameController.dispose();
+      passwordController.dispose();
+      remotePathController.dispose();
+    }
   }
 
   Future<void> _showBackupDialog(WebDavProvider webdavProvider) async {
     final passwordController = TextEditingController();
 
-    final confirmed = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Backup to WebDAV'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Enter a password to encrypt your backup. This can be different from your master password.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Backup Password',
-                border: OutlineInputBorder(),
+    try {
+      final confirmed = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Backup to WebDAV'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Enter a password to encrypt your backup. This can be different from your master password.',
               ),
-              onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Backup Password',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ Important: Store this password safely. You will need it to restore your backup.',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              '⚠️ Important: Store this password safely. You will need it to restore your backup.',
-              style: TextStyle(fontSize: 12, color: Colors.orange),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(
+                passwordController.text,
+              ),
+              child: const Text('Backup'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(
-              passwordController.text,
+      );
+
+      if (confirmed == null || confirmed.isEmpty || !mounted) return;
+
+      try {
+        await webdavProvider.backupToWebDAV(confirmed);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Backup completed successfully!'),
+              backgroundColor: Colors.green,
             ),
-            child: const Text('Backup'),
-          ),
-        ],
-      ),
-    );
-
-    passwordController.dispose();
-
-    if (confirmed == null || confirmed.isEmpty || !mounted) return;
-
-    try {
-      await webdavProvider.backupToWebDAV(confirmed);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Backup completed successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Backup failed: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Backup failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } finally {
+      passwordController.dispose();
     }
   }
 
@@ -769,108 +779,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Show restore options dialog
       final passwordController = TextEditingController();
-      bool overwrite = false;
 
-      final confirmed = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-            title: const Text('Restore from Backup'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('File: $selectedBackup'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Backup Password',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Import Mode:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                RadioListTile<bool>(
-                  title: const Text('Skip existing entries'),
-                  subtitle: const Text('Keep current data for duplicates'),
-                  value: false,
-                  groupValue: overwrite,
-                  onChanged: (value) {
-                    setState(() => overwrite = value ?? false);
-                  },
-                ),
-                RadioListTile<bool>(
-                  title: const Text('Overwrite existing entries'),
-                  subtitle: const Text('Replace current data with backup'),
-                  value: true,
-                  groupValue: overwrite,
-                  onChanged: (value) {
-                    setState(() => overwrite = value ?? false);
-                  },
-                ),
-                if (overwrite)
-                  const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Text(
-                      '⚠️ Warning: Existing passwords will be replaced',
-                      style: TextStyle(fontSize: 12, color: Colors.orange),
+      try {
+        bool overwrite = false;
+
+        final confirmed = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setState) => AlertDialog(
+              title: const Text('Restore from Backup'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('File: $selectedBackup'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Backup Password',
+                      border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Import Mode:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  RadioListTile<bool>(
+                    title: const Text('Skip existing entries'),
+                    subtitle: const Text('Keep current data for duplicates'),
+                    value: false,
+                    groupValue: overwrite,
+                    onChanged: (value) {
+                      setState(() => overwrite = value ?? false);
+                    },
+                  ),
+                  RadioListTile<bool>(
+                    title: const Text('Overwrite existing entries'),
+                    subtitle: const Text('Replace current data with backup'),
+                    value: true,
+                    groupValue: overwrite,
+                    onChanged: (value) {
+                      setState(() => overwrite = value ?? false);
+                    },
+                  ),
+                  if (overwrite)
+                    const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text(
+                        '⚠️ Warning: Existing passwords will be replaced',
+                        style: TextStyle(fontSize: 12, color: Colors.orange),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop({
+                    'password': passwordController.text,
+                    'overwrite': overwrite,
+                  }),
+                  child: const Text('Restore'),
+                ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(dialogContext).pop({
-                  'password': passwordController.text,
-                  'overwrite': overwrite,
-                }),
-                child: const Text('Restore'),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      passwordController.dispose();
-
-      if (confirmed == null || !mounted) return;
-
-      final password = confirmed['password'] as String;
-      final shouldOverwrite = confirmed['overwrite'] as bool;
-
-      if (password.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password is required'),
-            backgroundColor: Colors.red,
           ),
         );
-        return;
-      }
 
-      // Perform restore
-      await webdavProvider.restoreFromWebDAV(
-        selectedBackup,
-        password,
-        overwrite: shouldOverwrite,
-      );
+        if (confirmed == null || !mounted) return;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Restore completed successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        final password = confirmed['password'] as String;
+        final shouldOverwrite = confirmed['overwrite'] as bool;
+
+        if (password.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Password is required'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Perform restore
+        await webdavProvider.restoreFromWebDAV(
+          selectedBackup,
+          password,
+          overwrite: shouldOverwrite,
         );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Restore completed successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } finally {
+        passwordController.dispose();
       }
     } catch (e) {
       if (mounted) {
