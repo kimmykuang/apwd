@@ -1229,6 +1229,11 @@ Add comprehensive documentation:
 **Files:**
 - Modify: `test/CLAUDE.md`
 
+- [ ] **Step 0: 验证文件存在**
+
+Run: `ls -l test/CLAUDE.md`
+Expected: 文件存在
+
 - [ ] **Step 1: 在 test/CLAUDE.md 中添加 E2E 测试部分**
 
 在文档末尾添加：
@@ -1324,8 +1329,10 @@ Expected: 所有文件和目录都存在
 
 ```bash
 for file in tests/e2e/scenarios/*.yaml; do
-  echo "Checking $file..."
-  python3 -c "import yaml; yaml.safe_load(open('$file'))"
+  if [ -f "$file" ]; then
+    echo "Checking $file..."
+    python3 -c "import yaml; yaml.safe_load(open('$file'))"
+  fi
 done
 ```
 
