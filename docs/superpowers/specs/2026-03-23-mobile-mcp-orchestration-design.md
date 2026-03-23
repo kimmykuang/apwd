@@ -253,8 +253,35 @@ success_criteria:
 - `expected`: 预期结果（对象，字段任意）
 
 **错误处理字段**:
-- `fallback`: 失败后的降级操作列表
-- `on_failure`: 失败时的行为定义
+- `fallback`: 失败后的降级操作列表（字符串数组）
+  ```yaml
+  fallback:
+    - "截图当前界面，分析是否在正确页面"
+    - "如果不在主页面，返回主页重试"
+  ```
+- `on_failure`: 失败时的行为定义（对象）
+  ```yaml
+  on_failure:
+    action: "save_diff"  # 执行的动作
+    path: "reports/visual_diff.png"  # 相关路径（可选）
+    abort: false  # 是否终止测试（默认 false）
+  ```
+
+**错误处理配置**:
+所有场景共享的错误处理策略应定义在 `tests/e2e/config.yaml` 中：
+```yaml
+error_handling:
+  simulator_not_running:
+    action: "start_simulator"
+    command: "xcrun simctl boot {device_id}"
+    retry: true
+  app_crashed:
+    action: "relaunch_app"
+    command: "xcrun simctl launch {device_id} {bundle_id}"
+    retry: true
+    max_retries: 3
+```
+其中 `{device_id}` 和 `{bundle_id}` 从 config.yaml 的 simulator 和 app 配置中动态替换
 
 ---
 
@@ -286,9 +313,8 @@ import os
 def prepare_standard_state():
     """混合模式：Python 生成配置，Claude 执行创建"""
 
-    # 可选：重启模拟器清理应用状态
-    # os.system("xcrun simctl shutdown all")
-    # os.system("xcrun simctl boot <device_id>")
+    # 注意：模拟器管理由 Claude 通过 config.yaml 处理
+    # 此脚本仅负责生成测试数据配置
 
     # 返回测试数据配置
     config = {
@@ -338,6 +364,7 @@ if __name__ == "__main__":
 """
 import subprocess
 import sys
+import json
 
 def clean_app_data(device_id, bundle_id="com.apwd.app"):
     """卸载并重新安装应用"""
@@ -369,6 +396,48 @@ if __name__ == "__main__":
         print(json.dumps({"status": "error", "message": "Missing device_id"}))
         sys.exit(1)
     clean_app_data(device_id)
+```
+
+### Python 脚本 JSON 接口规范
+
+所有 Python 辅助脚本必须遵守统一的 JSON 响应格式：
+
+**成功响应**:
+```json
+{
+  "status": "success",
+  "config": {
+    // 可选：测试数据配置（如 prepare_standard_state.py）
+  },
+  "message": "Optional success message"
+}
+```
+
+**失败响应**:
+```json
+{
+  "status": "error",
+  "message": "具体错误信息",
+  "error_code": "OPTIONAL_ERROR_CODE"  // 可选
+}
+```
+
+**退出码**:
+- 成功：`sys.exit(0)`
+- 失败：`sys.exit(1)`
+
+**Claude 处理逻辑**:
+```python
+result = subprocess.run(['python', 'script.py'], capture_output=True, text=True)
+data = json.loads(result.stdout)
+
+if result.returncode != 0 or data.get('status') != 'success':
+    # 记录错误到测试报告
+    # 标记测试为 BLOCKED
+    # 不继续执行后续步骤
+else:
+    # 使用 data['config'] 中的配置
+    # 继续执行测试
 ```
 
 ---
@@ -598,7 +667,17 @@ standard_state.yaml (标准状态：3个密码 + 2个分组)
 
 **前置条件**:
 - WebDAV 测试服务器运行中
-- 服务器地址配置在环境变量
+  - 验证方式：Claude 在测试前执行 `curl -I $WEBDAV_TEST_URL` 检查 HTTP 200
+  - 失败处理：如果服务器不可达，标记测试为 BLOCKED，不执行
+- 环境变量配置（在 tests/e2e/config.yaml 或系统环境）:
+  ```yaml
+  webdav_test:
+    url: "https://webdav.test.local"  # 或 $WEBDAV_TEST_URL
+    username: "testuser"              # 或 $WEBDAV_TEST_USER
+    password: "testpass"              # 或 $WEBDAV_TEST_PASSWORD
+    remote_path: "/APWD_Test"
+  ```
+- Claude 从 config.yaml 读取配置或使用环境变量
 
 **测试步骤**:
 1. 打开设置 → WebDAV 配置
@@ -624,13 +703,30 @@ standard_state.yaml (标准状态：3个密码 + 2个分组)
 1. 打开设置 → 导出备份
 2. 输入加密密码 "BackupPass123!"
 3. 验证生成 .apwd 文件
+   - 文件路径：iOS 模拟器的 Documents 目录
+   - 文件名格式：`apwd_backup_YYYYMMDD_HHMMSS.apwd`
+   - Claude 通过截图或 mobile-mcp API 获取文件路径
+   - 验证文件存在：Bash `ls -la <file_path>`
 4. Python 脚本清空本地数据库
+   - 脚本：`tests/e2e/utils/clean_app_data.py`
+   - 传入设备 ID 和应用 bundle ID
 5. 导入备份文件
-   - 选择刚生成的 .apwd 文件
-   - 输入解密密码
-   - 验证导入成功
+   - Claude 通过 mobile-mcp 操作文件选择器
+   - 选择步骤3生成的 .apwd 文件（使用记录的文件路径）
+   - 输入解密密码 "BackupPass123!"
+   - 验证导入成功（显示成功消息）
 6. 验证 3 个密码都恢复
+   - 主页面显示 3 个密码条目
+   - 标题分别为：GitHub, Gmail, AWS Console
 7. 验证密码内容正确
+   - 点击每个密码查看详情
+   - 验证用户名和所属分组
+
+**后置清理**:
+- Python 脚本删除测试生成的 .apwd 文件
+  ```bash
+  rm -f <file_path>
+  ```
 
 ---
 
@@ -640,21 +736,49 @@ standard_state.yaml (标准状态：3个密码 + 2个分组)
 
 **1. 模拟器状态问题**
 
-在 YAML 中定义恢复策略:
+错误处理配置统一定义在 `tests/e2e/config.yaml` 中（而非每个 YAML 场景）：
 
 ```yaml
+# tests/e2e/config.yaml
+simulator:
+  platform: "ios"
+  device_id: "auto"  # "auto" 表示自动查找，或具体 UUID
+  device_name: "iPhone 15"  # 如果 device_id 为 auto，按名称查找
+
+app:
+  bundle_id: "com.apwd.app"
+  build_path: "build/ios/iphonesimulator/Runner.app"
+
 error_handling:
   simulator_not_running:
-    action: "启动模拟器"
-    command: "xcrun simctl boot <device_id>"
+    action: "start_simulator"
+    command: "xcrun simctl boot {device_id}"
     retry: true
 
   app_not_installed:
-    action: "提示用户"
-    message: "请先在模拟器中安装 APWD 应用"
-    abort: true
+    action: "install_app"
+    command: "xcrun simctl install {device_id} {build_path}"
+    retry: true
+    on_failure_abort: true  # 安装失败则终止测试
 
   app_crashed:
+    action: "relaunch_app"
+    command: "xcrun simctl launch {device_id} {bundle_id}"
+    retry: true
+    max_retries: 3
+```
+
+**动态值替换**:
+- `{device_id}`: 从 config.yaml 的 simulator.device_id 读取
+  - 如果值为 "auto"，Claude 执行：
+    ```bash
+    xcrun simctl list devices | grep "iPhone 15" | grep -oE '\([A-F0-9-]+\)' | head -1
+    ```
+- `{bundle_id}`: 从 config.yaml 的 app.bundle_id 读取
+- `{build_path}`: 从 config.yaml 的 app.build_path 读取
+
+**优先级**:
+如果单个场景的 YAML 定义了错误处理，优先使用场景级配置，否则使用 config.yaml 的全局配置
     action: "重启应用"
     command: "xcrun simctl launch <device_id> com.apwd.app"
     retry: true
@@ -898,6 +1022,87 @@ Connection timeout after 30s
 
 ---
 
+## 测试配置文件 (config.yaml)
+
+完整的 `tests/e2e/config.yaml` 结构定义：
+
+```yaml
+# tests/e2e/config.yaml
+# APWD E2E 测试全局配置
+
+# 模拟器配置
+simulator:
+  platform: "ios"  # ios 或 android
+  device_id: "auto"  # "auto" 自动查找，或具体 UUID
+  device_name: "iPhone 15"  # device_id 为 auto 时使用
+  os_version: "17.0"
+
+# 应用配置
+app:
+  bundle_id: "com.apwd.app"
+  build_path: "build/ios/iphonesimulator/Runner.app"
+  launch_timeout: 30  # 应用启动超时（秒）
+
+# Claude 配置
+claude:
+  model: "claude-sonnet-4-6"  # 可指定模型
+  temperature: 0.0  # 确定性执行
+  max_retries: 3
+
+# 测试报告配置
+reporting:
+  output_dir: "tests/e2e/reports"
+  screenshot_format: "png"
+  screenshot_dir: "tests/e2e/reports/screenshots"
+  save_video: false  # 是否录制测试视频
+  cleanup_screenshots_on_success: false  # 成功后是否清理截图
+
+# 超时配置
+timeouts:
+  step_default: 30  # 默认步骤超时（秒）
+  state_preparation: 120  # 状态准备超时
+  test_scenario: 300  # 单个场景超时
+
+# WebDAV 测试配置（可选）
+webdav_test:
+  enabled: true
+  url: "${WEBDAV_TEST_URL}"  # 支持环境变量
+  username: "${WEBDAV_TEST_USER}"
+  password: "${WEBDAV_TEST_PASSWORD}"
+  remote_path: "/APWD_Test"
+
+# 错误处理策略
+error_handling:
+  simulator_not_running:
+    action: "start_simulator"
+    command: "xcrun simctl boot {device_id}"
+    retry: true
+
+  app_not_installed:
+    action: "install_app"
+    command: "xcrun simctl install {device_id} {build_path}"
+    retry: true
+    on_failure_abort: true
+
+  app_crashed:
+    action: "relaunch_app"
+    command: "xcrun simctl launch {device_id} {bundle_id}"
+    retry: true
+    max_retries: 3
+
+# 命名约定
+naming:
+  screenshot_pattern: "{scenario}_{step}_{timestamp}.png"
+  report_pattern: "{scenario}_{timestamp}.md"
+```
+
+**环境变量支持**:
+- config.yaml 中使用 `${VAR_NAME}` 引用环境变量
+- Claude 在读取配置时自动替换
+- 示例：`url: "${WEBDAV_TEST_URL}"` → `url: "https://webdav.test.local"`
+
+---
+
 ## 使用方式
 
 ### 方式1: Claude CLI 直接执行单个场景
@@ -990,14 +1195,19 @@ claude -p "$PROMPT"
    - prepare_standard_state.py
    - clean_app_data.py
 
-3. 定义 YAML schema 和验证工具（可选）
+3. 创建 YAML schema 文档和验证方式
+   - 文档化 YAML 字段和结构（本规范中已包含）
+   - 验证方式：Claude 读取 YAML 时自动校验必填字段
+   - 可选工具：使用 `pyyaml` 或 `jsonschema` 做格式检查
+   - 如不实现工具，依赖 Claude 的语义理解和错误提示
 
 4. 编写测试配置文件 config.yaml
 
 **交付物**:
 - ✅ 完整目录结构
-- ✅ Python 脚本能正常执行
-- ✅ YAML schema 文档
+- ✅ Python 脚本能正常执行并返回标准 JSON
+- ✅ config.yaml 包含所有必需配置
+- ✅ YAML schema 文档（本规范已包含）
 
 ---
 
