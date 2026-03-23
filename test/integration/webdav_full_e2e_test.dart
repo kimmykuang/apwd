@@ -221,7 +221,9 @@ void main() {
       print('✓ Restored data from backup\n');
 
       // Cleanup download file
-      await File(downloadPath).delete();
+      try {
+        await File(downloadPath).delete();
+      } catch (_) {}
 
       print('=== PHASE 5: Verify Restored Data ===');
 
@@ -329,8 +331,6 @@ void main() {
       expect(fileName.endsWith('.apwd'), true);
       print('✓ File extension: .apwd');
 
-      // Cleanup
-      await backupFile.delete();
       print('✅ Backup file format validation passed!\n');
     });
 
@@ -370,7 +370,9 @@ void main() {
       print('✓ Correct password accepted');
 
       // Cleanup
-      await File(backupPath).delete();
+      try {
+        await File(backupPath).delete();
+      } catch (_) {}
       print('✅ Password validation test passed!\n');
     });
 
@@ -436,7 +438,11 @@ void main() {
       print('✓ Data integrity verified');
 
       // Cleanup
-      await File(backupPath).delete();
+      try {
+        await File(backupPath).delete();
+      } catch (_) {
+        // File may have been moved/deleted during test
+      }
       print('✅ Performance test passed!\n');
     });
   });
