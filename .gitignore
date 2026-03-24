@@ -54,6 +54,7 @@ test_results/**/screenshots/
 !test_results/README.md
 
 # E2E test screenshots
+tests/e2e/reports/
 test_home.png
 test_final.png
 
