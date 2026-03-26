@@ -1,0 +1,61 @@
+# tests/e2e/scenarios/groups_test.yaml
+name: "分组管理"
+description: "测试创建、编辑、删除分组以及密码分组归属"
+type: "test"
+requires_state: "standard_state"
+
+steps:
+  - id: "create_group"
+    action: "create_new_group"
+    description: "创建新分组 Personal"
+    params:
+      name: "Personal"
+      icon: "💙"
+    expected:
+      create_success: true
+      appears_in_list: true
+
+  - id: "move_password"
+    action: "move_password_to_group"
+    description: "将 Gmail 移动到 Personal 分组"
+    params:
+      password_title: "Gmail"
+      target_group: "Personal"
+    expected:
+      move_success: true
+      password_in_new_group: true
+
+  - id: "edit_group_name"
+    action: "edit_group"
+    description: "编辑分组名称为 Private"
+    params:
+      old_name: "Personal"
+      new_name: "Private"
+    expected:
+      edit_success: true
+      name_updated: true
+
+  - id: "delete_empty_group"
+    action: "delete_group"
+    description: "删除空分组 Work"
+    precondition:
+      - "先将 AWS Console 移到 Default 分组"
+    params:
+      group_name: "Work"
+    expected:
+      delete_success: true
+      not_in_list: true
+
+  - id: "cannot_delete_nonempty"
+    action: "try_delete_nonempty_group"
+    description: "验证无法删除有密码的分组"
+    params:
+      group_name: "Default"
+    expected:
+      delete_failed: true
+      error_shown: true
+
+success_criteria:
+  - "分组 CRUD 操作成功"
+  - "密码移动功能正常"
+  - "防止删除非空分组"

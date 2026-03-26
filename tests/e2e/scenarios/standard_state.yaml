@@ -1,0 +1,41 @@
+# tests/e2e/scenarios/standard_state.yaml
+name: "标准测试状态"
+description: "主密码已设置，包含3个测试密码和2个分组"
+type: "state_definition"
+
+depends_on:
+  - base_setup
+
+preparation_script: "tests/e2e/utils/prepare_standard_state.py"
+
+expected_state:
+  groups:
+    - id: 1
+      name: "Default"
+      icon: "🔐"
+    - id: 2
+      name: "Work"
+      icon: "💼"
+
+  passwords:
+    - title: "GitHub"
+      username: "test@github.com"
+      password: "GitHubPass123!"
+      group: "Default"
+    - title: "Gmail"
+      username: "test@gmail.com"
+      password: "GmailPass123!"
+      group: "Default"
+    - title: "AWS Console"
+      username: "test@aws.com"
+      password: "AWSPass123!"
+      group: "Work"
+
+verification_steps:
+  - "打开应用，应该直接在主页面（已解锁状态）"
+  - "主页面显示3个密码条目"
+  - "分组列表包含 Default 和 Work 两个分组"
+
+post_state:
+  name: "standard_state"
+  description: "标准测试状态已准备"

@@ -1,0 +1,73 @@
+# tests/e2e/scenarios/webdav_test.yaml
+# 注意：此测试需要 WebDAV 服务器运行
+# 设置环境变量：WEBDAV_TEST_URL, WEBDAV_TEST_USER, WEBDAV_TEST_PASSWORD
+# 或在 config.yaml 的 webdav_test 部分配置
+name: "WebDAV 备份和恢复"
+description: "测试 WebDAV 远程备份和恢复功能"
+type: "test"
+requires_state: "standard_state"
+
+preconditions:
+  webdav_server:
+    check: "curl -I ${WEBDAV_TEST_URL}"
+    on_failure: "skip_test_with_message"
+    message: "WebDAV 服务器不可达，跳过此测试"
+
+steps:
+  - id: "configure_webdav"
+    action: "setup_webdav_settings"
+    description: "配置 WebDAV 设置"
+    params:
+      url: "${WEBDAV_TEST_URL}"
+      username: "${WEBDAV_TEST_USER}"
+      password: "${WEBDAV_TEST_PASSWORD}"
+      remote_path: "/APWD_Test"
+    expected:
+      settings_saved: true
+
+  - id: "test_connection"
+    action: "test_webdav_connection"
+    description: "测试 WebDAV 连接"
+    timeout: 45
+    expected:
+      connection_success: true
+      message: "Connected successfully"
+
+  - id: "backup_to_webdav"
+    action: "backup_to_webdav"
+    description: "执行 WebDAV 备份"
+    params:
+      encryption_password: "BackupPass123!"
+    expected:
+      backup_success: true
+      message: "Backup completed"
+
+  - id: "clear_local_data"
+    action: "clear_app_data"
+    description: "清空本地数据库"
+    script: "tests/e2e/utils/clean_app_data.py"
+    expected:
+      data_cleared: true
+
+  - id: "restore_from_webdav"
+    action: "restore_from_webdav"
+    description: "从 WebDAV 恢复数据"
+    params:
+      encryption_password: "BackupPass123!"
+    expected:
+      restore_success: true
+      password_count: 3
+
+  - id: "verify_restored_data"
+    action: "verify_passwords"
+    description: "验证恢复的密码"
+    expected:
+      passwords:
+        - title: "GitHub"
+        - title: "Gmail"
+        - title: "AWS Console"
+
+success_criteria:
+  - "WebDAV 连接成功"
+  - "备份上传成功"
+  - "恢复数据完整"
