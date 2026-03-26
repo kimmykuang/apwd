@@ -16,8 +16,12 @@ This document lists all components of the APWD E2E test system and their verific
 tests/e2e/
 ├── README.md                     ✅ Complete
 ├── MANIFEST.md                   ✅ This file
+├── CHANGELOG.md                  ✅ Version history
+├── WEBDAV_MOCK_SERVER.md         ✅ WebDAV mock server guide
 ├── config.yaml                   ✅ Validated
 ├── run_tests.sh                  ✅ Syntax verified
+├── mock_webdav_server.py         ✅ WebDAV test server
+├── webdav_manager.sh             ✅ WebDAV server manager
 │
 ├── scenarios/                    ✅ All 7 scenarios complete
 │   ├── base_setup.yaml           ✅ Validated
@@ -31,10 +35,11 @@ tests/e2e/
 ├── utils/                        ✅ All scripts functional
 │   ├── prepare_standard_state.py ✅ Tested
 │   ├── clean_app_data.py         ✅ Tested
-│   └── start_simulator.sh        ✅ New - Critical utility
+│   └── start_simulator.sh        ✅ Critical utility
 │
 └── reports/                      ✅ Directory created
-    └── screenshots/              ✅ Directory created
+    ├── screenshots/              ✅ Directory created
+    └── webdav_test_data/         ✅ Mock WebDAV data (gitignored)
 ```
 
 ---
@@ -59,6 +64,16 @@ tests/e2e/
 #### MANIFEST.md
 - **Status**: ✅ Complete
 - **Purpose**: Component tracking and verification status
+
+#### CHANGELOG.md
+- **Status**: ✅ Complete
+- **Purpose**: Version history and migration guide
+- **Content**: Features, bug fixes, breaking changes
+
+#### WEBDAV_MOCK_SERVER.md
+- **Status**: ✅ Complete
+- **Purpose**: Mock WebDAV server documentation
+- **Content**: Setup, usage, configuration, troubleshooting
 
 ---
 
@@ -162,7 +177,7 @@ tests/e2e/
 
 ---
 
-### 4. Utility Scripts (2 total)
+### 4. Utility Scripts (3 total)
 
 #### prepare_standard_state.py
 - **Status**: ✅ Tested
@@ -189,9 +204,42 @@ tests/e2e/
 - **Error Handling**: Proper error reporting
 - **Test Result**: Correctly validates inputs and attempts xcrun commands
 
+#### start_simulator.sh
+- **Status**: ✅ Tested
+- **Purpose**: Start simulator and wait for WebDriverAgent
+- **Wait Time**: 15 seconds (critical for WebDriverAgent initialization)
+- **Features**: Device detection, boot verification, retry logic
+- **Test Result**: Successfully resolves WebDriverAgent timeout issue
+
 ---
 
-### 5. Launch Scripts
+### 5. WebDAV Test Infrastructure
+
+#### mock_webdav_server.py
+- **Status**: ✅ Tested
+- **Purpose**: Local Mock WebDAV server for testing
+- **Technology**: wsgidav + cheroot
+- **Features**:
+  - Auto-install dependencies
+  - Simple authentication (testuser/testpass123)
+  - Runs on localhost:8080
+  - Full WebDAV protocol support
+- **Test Result**: Server starts successfully, HTTP 207 responses
+
+#### webdav_manager.sh
+- **Status**: ✅ Tested
+- **Purpose**: Manage Mock WebDAV server lifecycle
+- **Commands**: start, stop, restart, status
+- **Features**:
+  - PID management
+  - Log recording
+  - Process monitoring
+  - Graceful shutdown
+- **Test Result**: All commands working correctly
+
+---
+
+### 6. Launch Scripts
 
 #### run_tests.sh
 - **Status**: ✅ Syntax validated

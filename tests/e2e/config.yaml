@@ -43,11 +43,24 @@ timeouts:
 
 # WebDAV 测试配置
 webdav_test:
-  enabled: false  # 默认禁用以保证安全，执行 webdav_test.yaml 前需手动启用或设置环境变量
-  url: "${WEBDAV_TEST_URL}"
-  username: "${WEBDAV_TEST_USER}"
-  password: "${WEBDAV_TEST_PASSWORD}"
-  remote_path: "/APWD_Test"
+  # Mock 服务器配置 (本地测试，自动启动)
+  use_mock_server: true  # 使用本地 Mock WebDAV 服务器
+  mock_server:
+    enabled: true
+    url: "http://127.0.0.1:8080"
+    username: "testuser"
+    password: "testpass123"
+    remote_path: "/APWD_Test"
+    auto_start: true  # 测试时自动启动服务器
+    auto_stop: true   # 测试完成后自动停止
+
+  # 真实服务器配置 (需要外部 WebDAV 服务器)
+  real_server:
+    enabled: false  # 默认禁用，需要手动配置
+    url: "${WEBDAV_TEST_URL}"
+    username: "${WEBDAV_TEST_USER}"
+    password: "${WEBDAV_TEST_PASSWORD}"
+    remote_path: "/APWD_Test"
 
 # 错误处理策略
 error_handling:

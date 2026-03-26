@@ -10,6 +10,11 @@ reports/*.md
 reports/screenshots/*.png
 !reports/screenshots/.gitkeep
 
+# WebDAV mock server data and logs
+reports/webdav_test_data/
+reports/webdav_server.pid
+reports/webdav_server.log
+
 # Temporary merge/review files
 PRE_MERGE_CHECKLIST.md
 
