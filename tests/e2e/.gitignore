@@ -1,0 +1,33 @@
+# E2E Test Generated Files
+# Test reports and screenshots are generated during test execution
+# and should not be committed to version control
+
+# Test execution reports
+reports/*.md
+!reports/.gitkeep
+
+# Screenshots
+reports/screenshots/*.png
+!reports/screenshots/.gitkeep
+
+# Temporary merge/review files
+PRE_MERGE_CHECKLIST.md
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment (if used)
+venv/
+.venv/
+
+# IDE files
+.DS_Store
+.idea/
+.vscode/
+
+# Temporary test files
+*.tmp
+*.log

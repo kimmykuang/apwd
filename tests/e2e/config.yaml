@@ -8,6 +8,13 @@ simulator:
   device_name: "iPhone 15"
   os_version: "17.0"
 
+  # WebDriverAgent 初始化配置 (CRITICAL)
+  # WebDriverAgent 需要时间初始化，不等待会导致所有测试失败
+  boot_wait_time: 15  # 模拟器启动后等待时间（秒）
+  webdriver_ready_timeout: 30  # WebDriverAgent 就绪超时（秒）
+  connection_retry_interval: 5  # 连接重试间隔（秒）
+  max_connection_retries: 3  # 最大连接重试次数
+
 # 应用配置
 app:
   bundle_id: "com.apwd.app"

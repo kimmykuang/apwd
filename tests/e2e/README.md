@@ -430,7 +430,64 @@ xcrun simctl boot 12345678-1234-1234-1234-123456789ABC
 
 ---
 
-#### 2. App Not Installed
+#### 2. WebDriverAgent Timeout (CRITICAL)
+
+**Error**: `error starting agent: timed out waiting for WebDriverAgent to be ready`
+
+**Root Cause**:
+WebDriverAgent requires 10-15 seconds to initialize after simulator boot. This is a critical timing issue that will block all E2E tests if not handled properly.
+
+**Solution**:
+```bash
+# CORRECT: Boot simulator and wait for WebDriverAgent
+xcrun simctl boot "iPhone 16"
+sleep 10  # Critical: Wait for WebDriverAgent initialization
+
+# Verify WebDriverAgent is ready
+mobile-mcp list-devices  # Should show device as "online"
+```
+
+**Best Practice**:
+Always include a 10-15 second wait after booting the simulator before attempting any mobile-mcp operations. This wait time is required for:
+- WebDriverAgent installation (first time)
+- WebDriverAgent process startup
+- Network connection establishment
+- Device communication initialization
+
+**In Automated Scripts**:
+```bash
+#!/bin/bash
+# Ensure simulator is ready for testing
+
+DEVICE_ID="72C2426F-C7BF-4DEF-83A6-148886362E99"
+
+# Boot simulator
+xcrun simctl boot "$DEVICE_ID"
+
+# CRITICAL: Wait for WebDriverAgent initialization
+echo "Waiting for WebDriverAgent to initialize..."
+sleep 15  # Use 15 seconds for reliability
+
+# Verify device is ready
+if mobile-mcp list-devices | grep -q "online"; then
+    echo "✓ Device ready for testing"
+else
+    echo "✗ Device not ready, waiting additional 10 seconds..."
+    sleep 10
+fi
+```
+
+**Configuration**:
+Update `tests/e2e/config.yaml` to include initialization timeouts:
+```yaml
+simulator:
+  boot_wait_time: 15  # Seconds to wait after boot
+  webdriver_ready_timeout: 30  # Max time to wait for WebDriverAgent
+```
+
+---
+
+#### 3. App Not Installed
 
 **Error**: `App bundle not found at path`
 

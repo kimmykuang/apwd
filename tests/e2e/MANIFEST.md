@@ -30,7 +30,8 @@ tests/e2e/
 │
 ├── utils/                        ✅ All scripts functional
 │   ├── prepare_standard_state.py ✅ Tested
-│   └── clean_app_data.py         ✅ Tested
+│   ├── clean_app_data.py         ✅ Tested
+│   └── start_simulator.sh        ✅ New - Critical utility
 │
 └── reports/                      ✅ Directory created
     └── screenshots/              ✅ Directory created
