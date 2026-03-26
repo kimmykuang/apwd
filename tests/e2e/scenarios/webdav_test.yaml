@@ -1,15 +1,38 @@
 # tests/e2e/scenarios/webdav_test.yaml
-# 注意：此测试需要 WebDAV 服务器运行
-# 设置环境变量：WEBDAV_TEST_URL, WEBDAV_TEST_USER, WEBDAV_TEST_PASSWORD
-# 或在 config.yaml 的 webdav_test 部分配置
+# WebDAV 备份和恢复测试
+# 支持两种模式：
+# 1. Mock 模式 (默认): 使用本地 Mock WebDAV 服务器 (config.yaml: use_mock_server: true)
+# 2. 真实模式: 使用外部 WebDAV 服务器 (config.yaml: use_mock_server: false)
 name: "WebDAV 备份和恢复"
-description: "测试 WebDAV 远程备份和恢复功能"
+description: "测试 WebDAV 远程备份和恢复功能（支持 Mock 和真实服务器）"
 type: "test"
 requires_state: "standard_state"
 
+# Mock WebDAV 服务器管理（当 use_mock_server: true 时）
+setup:
+  - id: "start_mock_webdav"
+    condition: "config.webdav_test.use_mock_server == true && config.webdav_test.mock_server.auto_start == true"
+    action: "run_script"
+    description: "启动 Mock WebDAV 服务器"
+    script: "./webdav_manager.sh start"
+    timeout: 10
+    expected:
+      exit_code: 0
+      output_contains: "WebDAV 服务器已启动"
+
+teardown:
+  - id: "stop_mock_webdav"
+    condition: "config.webdav_test.use_mock_server == true && config.webdav_test.mock_server.auto_stop == true"
+    action: "run_script"
+    description: "停止 Mock WebDAV 服务器"
+    script: "./webdav_manager.sh stop"
+    expected:
+      exit_code: 0
+
 preconditions:
   webdav_server:
-    check: "curl -I ${WEBDAV_TEST_URL}"
+    check: "curl -s -o /dev/null -w '%{http_code}' -u ${WEBDAV_USER}:${WEBDAV_PASSWORD} ${WEBDAV_URL}"
+    expected_code: "200,207,401"  # 200=OK, 207=Multi-Status, 401=Auth needed
     on_failure: "skip_test_with_message"
     message: "WebDAV 服务器不可达，跳过此测试"
 
@@ -18,56 +41,146 @@ steps:
     action: "setup_webdav_settings"
     description: "配置 WebDAV 设置"
     params:
-      url: "${WEBDAV_TEST_URL}"
-      username: "${WEBDAV_TEST_USER}"
-      password: "${WEBDAV_TEST_PASSWORD}"
+      url: "${WEBDAV_URL}"           # 从 config.yaml 读取
+      username: "${WEBDAV_USER}"     # 从 config.yaml 读取
+      password: "${WEBDAV_PASSWORD}" # 从 config.yaml 读取
       remote_path: "/APWD_Test"
     expected:
       settings_saved: true
+    notes: |
+      变量来源：
+      - Mock 模式: config.yaml -> webdav_test.mock_server.*
+      - 真实模式: config.yaml -> webdav_test.real_server.*
 
   - id: "test_connection"
     action: "test_webdav_connection"
     description: "测试 WebDAV 连接"
     timeout: 45
+    retry_on_failure: 2
     expected:
       connection_success: true
       message: "Connected successfully"
+    notes: "验证 WebDAV 服务器可达且认证成功"
 
   - id: "backup_to_webdav"
     action: "backup_to_webdav"
     description: "执行 WebDAV 备份"
     params:
       encryption_password: "BackupPass123!"
+      remote_filename: "apwd_test_backup.apwd"
+    timeout: 60
     expected:
       backup_success: true
       message: "Backup completed"
+      remote_file_exists: true
+    notes: "上传加密备份到 WebDAV 服务器"
+
+  - id: "verify_remote_file"
+    action: "check_remote_file"
+    description: "验证远程备份文件存在"
+    script: |
+      curl -s -u ${WEBDAV_USER}:${WEBDAV_PASSWORD} \
+        -X PROPFIND ${WEBDAV_URL}/APWD_Test/apwd_test_backup.apwd \
+        --header "Depth: 0"
+    expected:
+      exit_code: 0
+      output_contains: "apwd_test_backup.apwd"
+    notes: "使用 PROPFIND 请求验证文件已上传"
 
   - id: "clear_local_data"
     action: "clear_app_data"
     description: "清空本地数据库"
     script: "tests/e2e/utils/clean_app_data.py"
+    params:
+      device_id: "${DEVICE_ID}"
+      bundle_id: "${BUNDLE_ID}"
     expected:
       data_cleared: true
+    notes: "模拟数据丢失场景"
+
+  - id: "verify_data_cleared"
+    action: "verify_password_list"
+    description: "验证本地数据已清空"
+    expected:
+      password_count: 0
+      screen: "EmptyState"
+    notes: "确认数据确实被清除"
 
   - id: "restore_from_webdav"
     action: "restore_from_webdav"
     description: "从 WebDAV 恢复数据"
     params:
       encryption_password: "BackupPass123!"
+      remote_filename: "apwd_test_backup.apwd"
+      strategy: "overwrite"  # skip | overwrite | merge
+    timeout: 60
     expected:
       restore_success: true
       password_count: 3
+      message: "Restore completed"
+    notes: "下载并解密远程备份"
 
-  - id: "verify_restored_data"
-    action: "verify_passwords"
-    description: "验证恢复的密码"
+  - id: "verify_restored_passwords"
+    action: "verify_password_list"
+    description: "验证恢复的密码列表"
     expected:
-      passwords:
-        - title: "GitHub"
-        - title: "Gmail"
-        - title: "AWS Console"
+      password_count: 3
+      titles_contain: ["GitHub", "Gmail", "AWS Console"]
+    notes: "检查所有密码是否恢复"
+
+  - id: "verify_password_details"
+    action: "verify_each_password"
+    description: "验证每个密码的详细信息"
+    passwords:
+      - title: "GitHub"
+        username: "test@github.com"
+        group: "Default"
+        has_password: true
+      - title: "Gmail"
+        username: "test@gmail.com"
+        group: "Default"
+        has_password: true
+      - title: "AWS Console"
+        username: "test@aws.com"
+        group: "Work"
+        has_password: true
+    expected:
+      all_details_correct: true
+    notes: "验证密码详细信息完整性"
+
+  - id: "cleanup_remote_file"
+    action: "delete_remote_backup"
+    description: "清理远程测试文件"
+    script: |
+      curl -s -u ${WEBDAV_USER}:${WEBDAV_PASSWORD} \
+        -X DELETE ${WEBDAV_URL}/APWD_Test/apwd_test_backup.apwd
+    expected:
+      exit_code: 0
+    notes: "清理测试产生的远程文件"
+    on_failure: "log_warning"  # 清理失败不影响测试结果
 
 success_criteria:
-  - "WebDAV 连接成功"
-  - "备份上传成功"
-  - "恢复数据完整"
+  - "WebDAV 连接测试通过"
+  - "备份文件成功上传到远程服务器"
+  - "远程文件可通过 PROPFIND 验证"
+  - "本地数据清空后为空"
+  - "从远程恢复数据成功"
+  - "恢复的数据完整且准确（3个密码）"
+  - "所有密码详细信息正确"
+  - "测试文件已清理"
+
+notes: |
+  ## Mock WebDAV 服务器信息
+  - URL: http://127.0.0.1:8080/
+  - 用户名: testuser
+  - 密码: testpass123
+  - 数据目录: tests/e2e/reports/webdav_test_data/
+
+  ## 真实 WebDAV 服务器
+  - 配置位置: config.yaml -> webdav_test.real_server
+  - 需设置: use_mock_server: false
+
+  ## 故障排除
+  - Mock 服务器未启动: ./webdav_manager.sh start
+  - 连接超时: 检查服务器状态 ./webdav_manager.sh status
+  - 认证失败: 验证用户名密码配置

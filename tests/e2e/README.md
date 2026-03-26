@@ -67,8 +67,14 @@ The APWD E2E test system uses a unique **3-layer architecture** that combines AI
 ```
 tests/e2e/
 ├── README.md                    # This file
+├── MANIFEST.md                  # Component verification manifest
+├── CHANGELOG.md                 # Version history
+├── WEBDAV_MOCK_SERVER.md        # Mock WebDAV server guide
 ├── config.yaml                  # Global test configuration
 ├── run_tests.sh                 # Quick launch script
+│
+├── mock_webdav_server.py        # Mock WebDAV test server
+├── webdav_manager.sh            # WebDAV server manager
 │
 ├── scenarios/                   # Test scenario definitions
 │   ├── base_setup.yaml          # [BASE] First-time master password setup
@@ -81,10 +87,14 @@ tests/e2e/
 │
 ├── utils/                       # Python utility scripts
 │   ├── prepare_standard_state.py  # Generate test data config
-│   └── clean_app_data.py          # Reset simulator state
+│   ├── clean_app_data.py          # Reset simulator state
+│   └── start_simulator.sh         # Start simulator & wait for WebDriverAgent
 │
-└── reports/                     # Test execution reports
+└── reports/                     # Test execution reports (gitignored)
     ├── screenshots/             # Screenshots per test run
+    ├── webdav_test_data/        # Mock WebDAV data directory
+    ├── webdav_server.log        # Mock server logs
+    ├── webdav_server.pid        # Server process ID
     └── *.md                     # Markdown test reports
 ```
 
@@ -180,14 +190,25 @@ The E2E test suite covers 7 comprehensive scenarios:
 
 **Tests**:
 - Configure WebDAV server credentials
+- Test WebDAV connection
 - Backup passwords to WebDAV
-- Verify backup file on server
-- Clear local data
+- Verify backup file exists on server (PROPFIND)
+- Clear local data completely
 - Restore from WebDAV backup
-- Verify restored passwords
+- Verify all restored passwords and details
 
 **Dependencies**: `standard_state`
-**Requirements**: WebDAV server credentials in environment variables
+
+**Requirements**:
+- **Mock Mode** (默认): 本地 Mock WebDAV 服务器自动启动
+- **Real Mode**: 外部 WebDAV 服务器 + 认证凭据
+
+**Mock WebDAV Server**:
+- 默认启用 (`config.yaml`: `use_mock_server: true`)
+- 自动启动/停止 (`auto_start: true`, `auto_stop: true`)
+- URL: `http://127.0.0.1:8080/`
+- 认证: `testuser` / `testpass123`
+- 详细文档: [WEBDAV_MOCK_SERVER.md](WEBDAV_MOCK_SERVER.md)
 
 ---
 
@@ -344,23 +365,45 @@ timeouts:
   state_preparation: 120
   test_scenario: 300
 
-# WebDAV testing (disabled by default for security)
+# WebDAV testing
 webdav_test:
-  enabled: false
-  url: "${WEBDAV_TEST_URL}"
-  username: "${WEBDAV_TEST_USER}"
-  password: "${WEBDAV_TEST_PASSWORD}"
-  remote_path: "/APWD_Test"
+  # Mock 模式（默认，推荐用于自动化测试）
+  use_mock_server: true
+  mock_server:
+    enabled: true
+    url: "http://127.0.0.1:8080"
+    username: "testuser"
+    password: "testpass123"
+    remote_path: "/APWD_Test"
+    auto_start: true   # 测试开始前自动启动
+    auto_stop: true    # 测试结束后自动停止
+
+  # 真实模式（需要外部 WebDAV 服务器）
+  real_server:
+    enabled: false
+    url: "${WEBDAV_TEST_URL}"
+    username: "${WEBDAV_TEST_USER}"
+    password: "${WEBDAV_TEST_PASSWORD}"
+    remote_path: "/APWD_Test"
 ```
 
 ### Environment Variables
 
-For WebDAV testing, set credentials:
+**Mock WebDAV Mode** (默认): 无需配置，自动使用本地服务器
+
+**Real WebDAV Mode** (可选): 需设置环境变量
 
 ```bash
+# 禁用 Mock 模式
+# 编辑 config.yaml: use_mock_server: false, real_server.enabled: true
+
+# 设置真实 WebDAV 服务器凭据
 export WEBDAV_TEST_URL="https://webdav.example.com"
 export WEBDAV_TEST_USER="testuser"
 export WEBDAV_TEST_PASSWORD="testpass"
+
+# 验证连接
+curl -u "$WEBDAV_TEST_USER:$WEBDAV_TEST_PASSWORD" "$WEBDAV_TEST_URL"
 ```
 
 ### Scenario YAML Structure
@@ -546,20 +589,39 @@ claude -p "Execute base_setup.yaml then standard_state.yaml"
 
 #### 5. WebDAV Test Failing
 
-**Error**: `WebDAV credentials not configured`
+**Error**: `WebDAV server unreachable` or connection timeout
 
-**Solution**:
+**Mock Mode Solution** (默认):
 ```bash
-# Set environment variables
+# 检查 Mock 服务器状态
+./webdav_manager.sh status
+
+# 手动启动服务器
+./webdav_manager.sh start
+
+# 验证连接
+curl -u testuser:testpass123 http://127.0.0.1:8080/
+
+# 查看日志
+cat reports/webdav_server.log
+```
+
+**Real Mode Solution**:
+```bash
+# 设置环境变量
 export WEBDAV_TEST_URL="https://your-webdav.com"
 export WEBDAV_TEST_USER="username"
 export WEBDAV_TEST_PASSWORD="password"
 
-# Enable WebDAV in config
-# Edit config.yaml: webdav_test.enabled = true
+# 编辑 config.yaml
+# use_mock_server: false
+# real_server.enabled: true
 
-# Verify connection
+# 验证连接
 curl -u "$WEBDAV_TEST_USER:$WEBDAV_TEST_PASSWORD" "$WEBDAV_TEST_URL"
+```
+
+**详细故障排除**: 参见 [WEBDAV_MOCK_SERVER.md](WEBDAV_MOCK_SERVER.md#故障排除)
 ```
 
 ---
