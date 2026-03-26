@@ -53,6 +53,13 @@ test_results/**/*.md
 test_results/**/screenshots/
 !test_results/README.md
 
+# Test reports (all test layers)
+test/unit/reports/
+test/integration/reports/
+test/e2e/mobile/reports/
+test/e2e/web/reports/
+test/e2e/autonomous/reports/
+
 # E2E test screenshots
 tests/e2e/reports/
 test_home.png
